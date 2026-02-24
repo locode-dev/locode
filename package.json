@@ -29,7 +29,7 @@
         "dmg"
       ],
       "category": "public.app-category.developer-tools",
-      "icon": "build/locode.icns",
+      "icon": "assets/locode.icns",
       "hardenedRuntime": false
     },
     "files": [

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/locode.png" alt="Locode Logo" width="100" />
+<img src="assests/locode.png" alt="Locode Logo" width="100" />
 
 # ⚡ Locode
 
@@ -13,6 +13,12 @@
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-22d3ee?style=flat-square)
 
 *No cloud. No API keys. No subscriptions. Just your machine and your imagination.*
+
+<br>
+
+[![Download for macOS](https://img.shields.io/badge/⬇_Download_Locode-macOS_DMG-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/locode-dev/locode/releases/download/v1.0.0/Locode-v1.0.0-arm64.dmg)
+
+**v1.0.0 · Apple Silicon (arm64)**
 
 </div>
 
@@ -43,7 +49,19 @@ All locally. Always.
 
 ---
 
-## 🚀 Quick Start
+## 💻 Installation (macOS)
+
+1. Click the **Download** button above
+2. Open `Locode-v1.0.0-arm64.dmg`
+3. Drag **Locode** to your Applications folder
+4. Make sure [Ollama](https://ollama.ai) is running
+5. Open Locode and start building
+
+> **First launch:** If macOS blocks the app → **System Settings → Privacy & Security → Open Anyway**
+
+---
+
+## 🚀 Run from Source
 
 ### Prerequisites
 
