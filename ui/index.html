@@ -1,0 +1,3067 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Locode — Local AI App Builder</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+        id="hlTheme">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        /* ── DARK THEME (default) ── */
+        [data-theme="dark"] {
+            --bg: #0c0c0f;
+            --bg2: #111116;
+            --bg3: #18181e;
+            --bg4: #1f1f28;
+            --border: rgba(255, 255, 255, .07);
+            --border2: rgba(255, 255, 255, .13);
+            --text: #e8e8f2;
+            --muted: #6b6b80;
+            --muted2: #45455a;
+            --shadow: rgba(0, 0, 0, .5);
+            --code-bg: #0d0d12;
+        }
+
+        /* ── LIGHT THEME ── */
+        [data-theme="light"] {
+            --bg: #f4f4f7;
+            --bg2: #ffffff;
+            --bg3: #f0f0f4;
+            --bg4: #e8e8ee;
+            --border: rgba(0, 0, 0, .09);
+            --border2: rgba(0, 0, 0, .15);
+            --text: #18181e;
+            --muted: #707088;
+            /* ✅ fixed (was #7070888) */
+            --muted2: #8a8aa3;
+            --shadow: rgba(0, 0, 0, .12);
+            --code-bg: #101018;
+        }
+
+        /* shared across themes */
+        :root {
+            --accent: #5b7cf7;
+            --accent2: #38bdf8;
+            --green: #34d399;
+            --red: #f87171;
+            --yellow: #fbbf24;
+            --orange: #fb923c;
+            --mono: 'IBM Plex Mono', monospace;
+            --display: 'Syne', sans-serif;
+            --body: 'Inter', sans-serif;
+            --r: 10px;
+            --r-sm: 6px;
+            --sidebar-w: 272px;
+        }
+
+        html,
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--body);
+            font-size: 14px;
+            transition: background .25s, color .25s;
+        }
+
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ─────────────────────────────────────────────────────────────────────────────
+       LOGO (INLINE SVG) – works in light & dark
+       ───────────────────────────────────────────────────────────────────────────── */
+        .logo-box {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(56, 189, 248, .20), transparent 55%),
+                radial-gradient(120% 120% at 100% 100%, rgba(91, 124, 247, .18), transparent 60%),
+                linear-gradient(180deg, var(--bg3), var(--bg2));
+            border: 1px solid var(--border2);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, .18);
+            flex-shrink: 0;
+        }
+
+        [data-theme="dark"] .logo-box {
+            box-shadow: 0 14px 30px rgba(0, 0, 0, .55);
+        }
+
+        .logo-svg {
+            width: 22px;
+            height: 22px;
+            display: block;
+        }
+
+        .hero-logo-box {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(56, 189, 248, .22), transparent 55%),
+                radial-gradient(120% 120% at 100% 100%, rgba(91, 124, 247, .20), transparent 60%),
+                linear-gradient(180deg, var(--bg3), var(--bg2));
+            border: 1px solid var(--border2);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, .22);
+        }
+
+        [data-theme="dark"] .hero-logo-box {
+            box-shadow: 0 18px 40px rgba(0, 0, 0, .58);
+        }
+
+        .hero-logo-svg {
+            width: 30px;
+            height: 30px;
+        }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: var(--sidebar-w);
+            flex-shrink: 0;
+            background: var(--bg2);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background .25s, border-color .25s;
+        }
+
+        .sb-logo {
+            padding: 16px 16px 12px;
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-text-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            min-width: 0;
+        }
+
+        .logo-name {
+            font-family: var(--display);
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: -.5px;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-tagline {
+            font-family: var(--mono);
+            font-size: 8px;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--muted2);
+            margin-top: 2px;
+        }
+
+        /* Theme toggle */
+        .theme-btn {
+            margin-left: auto;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid var(--border2);
+            background: var(--bg3);
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            transition: all .15s;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .theme-btn:hover {
+            background: var(--bg4);
+            color: var(--text);
+        }
+
+        .theme-btn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .theme-btn .icon-moon {
+            display: block;
+        }
+
+        .theme-btn .icon-sun {
+            display: none;
+        }
+
+        [data-theme="light"] .theme-btn .icon-moon {
+            display: none;
+        }
+
+        [data-theme="light"] .theme-btn .icon-sun {
+            display: block;
+        }
+
+        /* Status */
+        .sb-status {
+            margin: 10px 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 11px;
+            border-radius: var(--r-sm);
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+            transition: background .25s, border-color .25s;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--muted2);
+            flex-shrink: 0;
+            transition: all .3s;
+        }
+
+        .dot.live {
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: blink 2s ease infinite;
+        }
+
+        .dot.busy {
+            background: var(--yellow);
+            box-shadow: 0 0 8px var(--yellow);
+            animation: blink .7s ease infinite;
+        }
+
+        .dot.err {
+            background: var(--red);
+            box-shadow: 0 0 8px var(--red);
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .3
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-6px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        /* Section label */
+        .sb-section {
+            padding: 14px 14px 6px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted2);
+        }
+
+        /* Model row */
+        .model-row {
+            padding: 2px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .model-wrap {
+            position: relative;
+        }
+
+        .model-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 7px 10px;
+            border-radius: var(--r-sm);
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--text);
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .model-trigger:hover {
+            border-color: var(--border2);
+            background: var(--bg4);
+        }
+
+        .model-trigger.open {
+            border-color: rgba(91, 124, 247, .4);
+            background: rgba(91, 124, 247, .07);
+        }
+
+        .mt-role {
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--muted2);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .mt-name {
+            flex: 1;
+            text-align: left;
+            font-weight: 600;
+            color: var(--accent);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mt-dot-r {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--accent2);
+            flex-shrink: 0;
+        }
+
+        .mt-dot-b {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .mt-chevron {
+            color: var(--muted2);
+            display: flex;
+            align-items: center;
+            transition: transform .2s;
+        }
+
+        .mt-chevron svg {
+            width: 10px;
+            height: 10px;
+        }
+
+        .model-trigger.open .mt-chevron {
+            transform: rotate(180deg);
+        }
+
+        .model-dropdown {
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            right: 0;
+            z-index: 500;
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: var(--r);
+            box-shadow: 0 12px 40px var(--shadow);
+            padding: 6px;
+            display: none;
+            animation: fadeUp .12s ease;
+            min-width: 240px;
+        }
+
+        .model-dropdown.show {
+            display: block;
+        }
+
+        .md-section {
+            padding: 5px 8px 3px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted2);
+        }
+
+        .md-opt {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 9px;
+            border-radius: var(--r-sm);
+            cursor: pointer;
+            transition: background .1s;
+        }
+
+        .md-opt:hover {
+            background: var(--bg3);
+        }
+
+        .md-opt.sel {
+            background: rgba(91, 124, 247, .1);
+        }
+
+        .md-opt-icon {
+            font-size: 13px;
+            width: 22px;
+            text-align: center;
+        }
+
+        .md-opt-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .md-opt-name {
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--text);
+        }
+
+        .md-opt-desc {
+            font-size: 9.5px;
+            color: var(--muted2);
+            margin-top: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .md-tag {
+            font-size: 7.5px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .md-tag.fast {
+            background: rgba(52, 211, 153, .12);
+            color: var(--green);
+        }
+
+        .md-tag.quality {
+            background: rgba(91, 124, 247, .12);
+            color: var(--accent);
+        }
+
+        .md-tag.code {
+            background: rgba(56, 189, 248, .12);
+            color: var(--accent2);
+        }
+
+        .md-tag.big {
+            background: rgba(251, 146, 60, .12);
+            color: var(--orange);
+        }
+
+        .md-check {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border2);
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            transition: all .15s;
+        }
+
+        .md-opt.sel .md-check {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .md-check svg {
+            width: 7px;
+            height: 7px;
+            color: #fff;
+            opacity: 0;
+        }
+
+        .md-opt.sel .md-check svg {
+            opacity: 1;
+        }
+
+        /* Nav */
+        .sb-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 10px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: var(--r-sm);
+            cursor: pointer;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 500;
+            transition: all .12s;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--bg3);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(91, 124, 247, .1);
+            border-color: rgba(91, 124, 247, .2);
+            color: var(--accent);
+        }
+
+        .nav-item svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+
+        .hist-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: var(--r-sm);
+            cursor: pointer;
+            transition: all .12s;
+            border: 1px solid transparent;
+        }
+
+        .hist-item:hover {
+            background: var(--bg3);
+            border-color: var(--border);
+        }
+
+        .hi-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--green);
+            flex-shrink: 0;
+        }
+
+        .hi-title {
+            font-size: 12px;
+            color: var(--muted);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hi-tag {
+            font-family: var(--mono);
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            color: var(--muted2);
+            background: var(--bg3);
+            flex-shrink: 0;
+        }
+
+        /* Footer */
+        .sb-footer {
+            padding: 10px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .sb-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: var(--r-sm);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--muted);
+            background: none;
+            border: 1px solid transparent;
+            transition: all .12s;
+            width: 100%;
+            text-align: left;
+            font-family: var(--body);
+        }
+
+        .sb-btn:hover {
+            background: var(--bg3);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        .sb-btn svg {
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0;
+        }
+
+        .sb-btn.primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+            justify-content: center;
+            font-weight: 600;
+            gap: 6px;
+        }
+
+        .sb-btn.primary:hover {
+            opacity: .88;
+        }
+
+        /* ── MAIN ── */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .topbar {
+            height: 46px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg2);
+            flex-shrink: 0;
+            transition: background .25s;
+        }
+
+        .view-tabs {
+            display: flex;
+            gap: 2px;
+        }
+
+        .vtab {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: var(--r-sm);
+            font-size: 12px;
+            font-weight: 500;
+            font-family: var(--body);
+            color: var(--muted);
+            background: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .vtab svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .vtab:hover {
+            background: var(--bg3);
+            color: var(--text);
+        }
+
+        .vtab.on {
+            background: rgba(91, 124, 247, .1);
+            border-color: rgba(91, 124, 247, .2);
+            color: var(--accent);
+        }
+
+        .tb-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tb-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 11px;
+            border-radius: var(--r-sm);
+            font-size: 12px;
+            font-weight: 500;
+            font-family: var(--body);
+            color: var(--muted);
+            background: none;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .tb-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .tb-btn:hover {
+            border-color: var(--border2);
+            color: var(--text);
+        }
+
+        .spin {
+            width: 14px;
+            height: 14px;
+            animation: spin .7s linear infinite;
+            color: var(--accent);
+            display: none;
+        }
+
+        .spin.on {
+            display: block;
+        }
+
+        /* ── HOME VIEW ── */
+        .home-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 24px 60px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        [data-theme="dark"] .home-view {
+            background: radial-gradient(ellipse 80% 50% at 50% -5%, rgba(91, 124, 247, .13), transparent);
+        }
+
+        [data-theme="light"] .home-view {
+            background: radial-gradient(ellipse 80% 50% at 50% -5%, rgba(91, 124, 247, .08), transparent);
+        }
+
+        .home-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+            animation: fadeUp .4s ease both;
+        }
+
+        .home-logo-name {
+            font-family: var(--display);
+            font-size: 38px;
+            font-weight: 800;
+            letter-spacing: -2px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .home-logo-sub {
+            font-size: 14px;
+            color: var(--muted);
+            text-align: center;
+            animation: fadeUp .4s .06s ease both;
+            max-width: 420px;
+            line-height: 1.7;
+            margin-bottom: 14px;
+        }
+
+        .prompt-wrap {
+            width: 100%;
+            max-width: 580px;
+            animation: fadeUp .4s .1s ease both;
+        }
+
+        .prompt-box {
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: 14px;
+            padding: 4px;
+            box-shadow: 0 4px 24px var(--shadow);
+            transition: all .2s;
+        }
+
+        .prompt-box:focus-within {
+            border-color: rgba(91, 124, 247, .45);
+            box-shadow: 0 0 0 3px rgba(91, 124, 247, .1), 0 4px 24px var(--shadow);
+        }
+
+        .prompt-box textarea {
+            width: 100%;
+            background: none;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: var(--body);
+            font-size: 14px;
+            color: var(--text);
+            line-height: 1.65;
+            padding: 14px 16px 8px;
+            min-height: 100px;
+        }
+
+        .prompt-box textarea::placeholder {
+            color: var(--muted2);
+        }
+
+        .prompt-footer {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+        }
+
+        .detect-badge {
+            display: none;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(91, 124, 247, .3);
+            background: rgba(91, 124, 247, .08);
+            font-family: var(--mono);
+            font-size: 9px;
+            color: var(--accent);
+            animation: fadeUp .15s;
+        }
+
+        .detect-badge.show {
+            display: flex;
+        }
+
+        .kbd-hint {
+            font-family: var(--mono);
+            font-size: 9px;
+            color: var(--muted2);
+        }
+
+        .send-btn {
+            margin-left: auto;
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: var(--accent);
+            border: none;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            transition: all .15s;
+            flex-shrink: 0;
+            box-shadow: 0 4px 14px rgba(91, 124, 247, .4);
+        }
+
+        .send-btn:hover {
+            background: #7b9cf9;
+            transform: scale(1.06);
+            box-shadow: 0 6px 18px rgba(91, 124, 247, .5);
+        }
+
+        .send-btn:active {
+            transform: scale(.95);
+        }
+
+        .send-btn:disabled {
+            opacity: .35;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .send-btn svg {
+            width: 15px;
+            height: 15px;
+            color: #fff;
+        }
+
+        /* ── WORKSPACE ── */
+        .workspace {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .workspace.gone {
+            display: none;
+        }
+
+        /* pipeline */
+        .pipeline {
+            width: 310px;
+            flex-shrink: 0;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg2);
+            transition: background .25s;
+        }
+
+        .panel-head {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-head svg {
+            width: 11px;
+            height: 11px;
+        }
+
+        /* steps */
+        .steps {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: var(--r-sm);
+            opacity: .2;
+            transition: all .3s;
+            border: 1px solid transparent;
+        }
+
+        .step.active {
+            opacity: 1;
+            background: rgba(91, 124, 247, .08);
+            border-color: rgba(91, 124, 247, .2);
+        }
+
+        .step.done {
+            opacity: .5;
+        }
+
+        .step.error {
+            opacity: 1;
+            background: rgba(248, 113, 113, .06);
+            border-color: rgba(248, 113, 113, .18);
+        }
+
+        .step-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            transition: all .25s;
+        }
+
+        .step-icon svg {
+            width: 13px;
+            height: 13px;
+            color: var(--muted2);
+        }
+
+        .step.active .step-icon {
+            border-color: rgba(91, 124, 247, .3);
+            background: rgba(91, 124, 247, .1);
+        }
+
+        .step.active .step-icon svg {
+            color: var(--accent);
+        }
+
+        .step.done .step-icon {
+            border-color: rgba(52, 211, 153, .25);
+            background: rgba(52, 211, 153, .07);
+        }
+
+        .step.done .step-icon svg {
+            color: var(--green);
+        }
+
+        .step.error .step-icon svg {
+            color: var(--red);
+        }
+
+        .step-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .step-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .step-sub {
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: var(--muted2);
+            margin-top: 1px;
+        }
+
+        .step-badge {
+            font-family: var(--mono);
+            font-size: 8px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            color: var(--muted2);
+            background: var(--bg3);
+        }
+
+        .step.active .step-badge {
+            color: var(--yellow);
+            border-color: rgba(251, 191, 36, .2);
+            background: rgba(251, 191, 36, .06);
+        }
+
+        .step.done .step-badge {
+            color: var(--green);
+            border-color: rgba(52, 211, 153, .2);
+            background: rgba(52, 211, 153, .06);
+        }
+
+        .step.error .step-badge {
+            color: var(--red);
+            border-color: rgba(248, 113, 113, .2);
+            background: rgba(248, 113, 113, .06);
+        }
+
+        /* logbox */
+        .logbox {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 10px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            line-height: 1.9;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-line {
+            display: flex;
+            gap: 8px;
+            animation: slideIn .1s;
+        }
+
+        .log-time {
+            color: var(--muted2);
+            font-size: 9.5px;
+            flex-shrink: 0;
+        }
+
+        .log-lvl {
+            width: 38px;
+            font-size: 9.5px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .log-lvl.INFO {
+            color: var(--accent2);
+        }
+
+        .log-lvl.WARN {
+            color: var(--yellow);
+        }
+
+        .log-lvl.ERROR {
+            color: var(--red);
+        }
+
+        .log-lvl.SUCCESS {
+            color: var(--green);
+        }
+
+        .log-msg {
+            flex: 1;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        /* ── RPANE TOOLBAR ── */
+        .rpane-toolbar {
+            display: none;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg2);
+            transition: background .25s;
+            padding: 8px 12px;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .rpane-toolbar.show {
+            display: flex;
+        }
+
+        .rpt-tabs {
+            display: flex;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .rpt-tab {
+            padding: 5px 11px;
+            border-radius: var(--r-sm);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--muted);
+            background: none;
+            border: 1px solid transparent;
+            transition: all .12s;
+            font-family: var(--body);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .rpt-tab svg {
+            width: 11px;
+            height: 11px;
+            flex-shrink: 0;
+        }
+
+        .rpt-tab:hover {
+            background: var(--bg3);
+            color: var(--text);
+        }
+
+        .rpt-tab.on {
+            background: rgba(91, 124, 247, .1);
+            border-color: rgba(91, 124, 247, .2);
+            color: var(--accent);
+        }
+
+        .rpt-input-wrap {
+            flex: 1;
+            position: relative;
+        }
+
+        .rpt-input {
+            width: 100%;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 7px 36px 7px 11px;
+            font-family: var(--body);
+            font-size: 12.5px;
+            color: var(--text);
+            outline: none;
+            transition: border-color .15s;
+            line-height: 1.4;
+        }
+
+        .rpt-input:focus {
+            border-color: rgba(91, 124, 247, .45);
+        }
+
+        .rpt-input::placeholder {
+            color: var(--muted2);
+        }
+
+        .rpt-send {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            border: none;
+            background: var(--accent);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .rpt-send:hover {
+            opacity: .85;
+        }
+
+        .rpt-send:disabled {
+            opacity: .3;
+            cursor: not-allowed;
+        }
+
+        .rpt-send svg {
+            width: 12px;
+            height: 12px;
+            color: #fff;
+        }
+
+        .rpt-fix-btn {
+            flex-shrink: 0;
+            padding: 7px 14px;
+            border-radius: var(--r-sm);
+            border: 1px solid var(--border2);
+            background: var(--bg3);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--body);
+            transition: all .15s;
+            white-space: nowrap;
+        }
+
+        .rpt-fix-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .rpt-fix-btn:hover {
+            background: var(--bg4);
+            border-color: var(--border2);
+        }
+
+        .action-bar {
+            display: none !important;
+        }
+
+        /* test panel */
+        .test-panel {
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            max-height: 140px;
+            overflow-y: auto;
+            background: var(--bg3);
+        }
+
+        .test-panel-head {
+            padding: 6px 12px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg3);
+        }
+
+        .test-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 3px 12px;
+            font-family: var(--mono);
+            font-size: 10px;
+            animation: slideIn .1s;
+        }
+
+        .tr-icon.pass {
+            color: var(--green);
+        }
+
+        .tr-icon.fail {
+            color: var(--red);
+        }
+
+        .tr-icon.run {
+            color: var(--yellow);
+        }
+
+        .tr-msg {
+            flex: 1;
+            color: var(--text);
+        }
+
+        .tr-detail {
+            color: var(--muted2);
+            font-size: 9px;
+            word-break: break-word;
+        }
+
+        .test-attempt {
+            padding: 3px 12px;
+            font-size: 9px;
+            color: var(--muted2);
+            font-family: var(--mono);
+        }
+
+        /* files */
+        .files-wrap {
+            border-top: 1px solid var(--border);
+            padding: 8px 12px;
+            max-height: 100px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .files-head {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted2);
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .files-head svg {
+            width: 10px;
+            height: 10px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--mono);
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background .1s;
+            animation: slideIn .15s;
+        }
+
+        .file-item:hover {
+            background: var(--bg3);
+        }
+
+        .file-name {
+            flex: 1;
+            color: var(--text);
+            transition: color .3s;
+        }
+
+        .file-name.fresh {
+            color: var(--green);
+        }
+
+        .file-size {
+            color: var(--muted2);
+            font-size: 9px;
+        }
+
+        /* ── RIGHT PANE ── */
+        .rpane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .pv-pane {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .pv-pane.gone {
+            display: none;
+        }
+
+        .browser-bar {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg2);
+            flex-shrink: 0;
+            transition: background .25s;
+        }
+
+        .browser-dots {
+            display: flex;
+            gap: 5px;
+        }
+
+        .bd {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+        }
+
+        .bd:nth-child(1) {
+            background: #ff5f57;
+        }
+
+        .bd:nth-child(2) {
+            background: #febc2e;
+        }
+
+        .bd:nth-child(3) {
+            background: #28c840;
+        }
+
+        .url-bar {
+            flex: 1;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            color: var(--muted2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .url-bar svg {
+            width: 10px;
+            height: 10px;
+            color: var(--green);
+        }
+
+        .url-txt {
+            color: var(--text);
+        }
+
+        .vp-btns {
+            display: flex;
+            gap: 3px;
+        }
+
+        .vp-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            color: var(--muted2);
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            transition: all .15s;
+        }
+
+        .vp-btn svg {
+            width: 11px;
+            height: 11px;
+        }
+
+        .vp-btn.on,
+        .vp-btn:hover {
+            border-color: rgba(91, 124, 247, .3);
+            color: var(--accent);
+        }
+
+        .preview-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        [data-theme="dark"] .preview-area {
+            background: #0d0d12;
+        }
+
+        [data-theme="light"] .preview-area {
+            background: #e4e4ec;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            color: var(--muted2);
+            text-align: center;
+            padding: 40px;
+            animation: fadeUp .4s;
+        }
+
+        .empty-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            display: grid;
+            place-items: center;
+        }
+
+        .empty-icon svg {
+            width: 28px;
+            height: 28px;
+            color: var(--accent);
+        }
+
+        .empty-state h3 {
+            font-family: var(--display);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            max-width: 220px;
+            line-height: 1.7;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(20px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 22px;
+            animation: fadeUp .3s;
+        }
+
+        [data-theme="dark"] .overlay {
+            background: rgba(12, 12, 15, .9);
+        }
+
+        [data-theme="light"] .overlay {
+            background: rgba(244, 244, 247, .9);
+        }
+
+        .overlay.show {
+            display: flex;
+        }
+
+        .ov-spinner {
+            width: 44px;
+            height: 44px;
+            border: 2px solid rgba(91, 124, 247, .2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .ov-title {
+            font-family: var(--display);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .progress-wrap {
+            width: 220px;
+        }
+
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .progress-bar {
+            height: 3px;
+            background: var(--bg3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            transition: width .5s;
+        }
+
+        .ov-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 220px;
+        }
+
+        .ov-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--mono);
+            font-size: 10px;
+            opacity: .2;
+            transition: all .3s;
+        }
+
+        .ov-step.active {
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        .ov-step.done {
+            opacity: .45;
+            color: var(--green);
+        }
+
+        .ov-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+            background: #fff;
+        }
+
+        iframe.tablet {
+            width: 768px;
+            height: 87%;
+            border-radius: 12px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .4);
+        }
+
+        iframe.mobile {
+            width: 375px;
+            height: 87%;
+            border-radius: 24px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .4);
+            border: 3px solid var(--border2);
+        }
+
+        /* code pane */
+        .code-pane {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .code-pane.show {
+            display: flex;
+        }
+
+        .code-header {
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg2);
+            flex-shrink: 0;
+            min-height: 40px;
+            transition: background .25s;
+        }
+
+        .code-file {
+            font-family: var(--mono);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .stream-badge {
+            font-family: var(--mono);
+            font-size: 8.5px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid;
+            display: none;
+        }
+
+        .stream-badge.live {
+            background: rgba(52, 211, 153, .07);
+            border-color: rgba(52, 211, 153, .25);
+            color: var(--green);
+            animation: blink .8s infinite;
+            display: inline-block;
+        }
+
+        .stream-badge.done {
+            background: rgba(91, 124, 247, .07);
+            border-color: rgba(91, 124, 247, .25);
+            color: var(--accent);
+            display: inline-block;
+        }
+
+        .code-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .fs-sidebar {
+            width: 180px;
+            flex-shrink: 0;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            background: var(--bg2);
+            transition: background .25s;
+        }
+
+        .fs-head {
+            padding: 8px 12px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted2);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .fs-group {
+            padding: 5px 12px;
+            font-size: 8.5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            color: var(--muted2);
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            margin-top: 2px;
+        }
+
+        .fs-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all .1s;
+            border-left: 2px solid transparent;
+        }
+
+        .fs-item:hover {
+            background: var(--bg3);
+            color: var(--text);
+        }
+
+        .fs-item.on {
+            border-left-color: var(--accent);
+            background: rgba(91, 124, 247, .08);
+            color: var(--text);
+        }
+
+        .fs-item.streaming {
+            color: var(--yellow);
+            animation: blink .6s infinite;
+        }
+
+        .fs-item.done-file {
+            color: var(--green);
+        }
+
+        .code-view {
+            flex: 1;
+            overflow: auto;
+            background: var(--code-bg);
+        }
+
+        .code-none {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 10px;
+            color: var(--muted2);
+        }
+
+        .code-none svg {
+            width: 26px;
+            height: 26px;
+        }
+
+        .stream-view {
+            flex: 1;
+            overflow: auto;
+            background: var(--code-bg);
+        }
+
+        .stream-code {
+            font-family: var(--mono);
+            font-size: 11.5px;
+            line-height: 1.75;
+            padding: 16px;
+            color: #a0aab8;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 100%;
+        }
+
+        pre.hlcode {
+            margin: 0;
+            border-radius: 0;
+            min-height: 100%;
+        }
+
+        code.hlcode {
+            font-family: var(--mono) !important;
+            font-size: 11.5px !important;
+            line-height: 1.75 !important;
+            display: block;
+            padding: 16px !important;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .code-toolbar {
+            padding: 7px 12px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg2);
+            flex-shrink: 0;
+        }
+
+        .code-toolbar-file {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted2);
+            flex: 1;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(91, 124, 247, .2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(91, 124, 247, .35);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+
+        <!-- ── SIDEBAR ── -->
+        <div class="sidebar">
+            <div class="sb-logo">
+                <!-- ✅ INLINE LOGO (no image path issues) -->
+                <div class="logo-box" aria-hidden="true">
+                    <svg class="logo-svg" viewBox="0 0 24 24" fill="none">
+                        <!-- leaf-ish curve -->
+                        <path d="M6.2 12.6c3.9-6.9 10.9-7.4 11.6-7.4 0 0 .4 7.9-6.5 11.8-2.3 1.3-5.2 1.5-7.3.4"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            style="color:var(--accent2)" />
+                        <!-- spark -->
+                        <path d="M14.6 9.4l1.1-2.6 1.1 2.6 2.6 1.1-2.6 1.1-1.1 2.6-1.1-2.6-2.6-1.1 2.6-1.1z"
+                            fill="currentColor" style="color:var(--accent)" />
+                    </svg>
+                </div>
+
+                <div class="logo-text-wrap">
+                    <span class="logo-name">Locode</span>
+                    <span class="logo-tagline">local AI builder</span>
+                </div>
+
+                <!-- Dark/light toggle -->
+                <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="sb-status">
+                <div class="dot" id="dot"></div>
+                <span id="stxt">connecting…</span>
+            </div>
+
+            <div class="sb-section">Models</div>
+            <div class="model-row">
+                <div class="model-wrap" id="refineWrap">
+                    <button class="model-trigger" id="refineTrigger" onclick="toggleDrop('refine')">
+                        <div class="mt-dot-r"></div>
+                        <span class="mt-role">Refine</span>
+                        <span class="mt-name" id="refineLabel">llama3.1:8b</span>
+                        <span class="mt-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9" />
+                            </svg></span>
+                    </button>
+                    <div class="model-dropdown" id="refineDrop">
+                        <div class="md-section">Idea refinement</div>
+                        <div id="refineOpts"></div>
+                    </div>
+                </div>
+
+                <div class="model-wrap" id="buildWrap">
+                    <button class="model-trigger" id="buildTrigger" onclick="toggleDrop('build')">
+                        <div class="mt-dot-b"></div>
+                        <span class="mt-role">Build</span>
+                        <span class="mt-name" id="buildLabel">qwen2.5-coder:14b</span>
+                        <span class="mt-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9" />
+                            </svg></span>
+                    </button>
+                    <div class="model-dropdown" id="buildDrop">
+                        <div class="md-section">Code generation</div>
+                        <div id="buildOpts"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sb-nav">
+                <div class="sb-section" style="padding-top:10px">Navigate</div>
+                <div class="nav-item active" onclick="goHome()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                    Home
+                </div>
+
+                <div class="sb-section" style="padding-top:12px">Projects</div>
+                <div id="histwrap"></div>
+            </div>
+
+            <div class="sb-footer">
+                <button class="sb-btn" onclick="openInBrowser()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    Open in new tab
+                </button>
+
+                <button class="sb-btn primary" onclick="dlZip()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download ZIP
+                </button>
+            </div>
+        </div>
+
+        <!-- ── MAIN ── -->
+        <div class="main">
+            <div class="topbar">
+                <div class="view-tabs" id="viewTabs" style="display:none">
+                    <button class="vtab on" onclick="setView('preview',this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                        Preview
+                    </button>
+                    <button class="vtab" onclick="setView('code',this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="16 18 22 12 16 6" />
+                            <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                        Code
+                    </button>
+                </div>
+
+                <div class="tb-right">
+                    <svg class="spin" id="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                </div>
+            </div>
+
+            <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+
+                <!-- ✅ FIXED: Home content is inside home-view (your old code closed it too early) -->
+                <div class="home-view" id="homeView">
+                    <div class="home-logo">
+                        <div class="hero-logo-box" aria-hidden="true">
+                            <svg class="hero-logo-svg" viewBox="0 0 24 24" fill="none">
+                                <path d="M6.2 12.6c3.9-6.9 10.9-7.4 11.6-7.4 0 0 .4 7.9-6.5 11.8-2.3 1.3-5.2 1.5-7.3.4"
+                                    stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                                    stroke-linejoin="round" style="color:var(--accent2)" />
+                                <path d="M14.6 9.4l1.1-2.6 1.1 2.6 2.6 1.1-2.6 1.1-1.1 2.6-1.1-2.6-2.6-1.1 2.6-1.1z"
+                                    fill="currentColor" style="color:var(--accent)" />
+                            </svg>
+                        </div>
+                        <div class="home-logo-name">Locode</div>
+                    </div>
+
+                    <div class="home-logo-sub">
+                        Describe your app. Get production-ready React — powered entirely by your local Ollama models.
+                        No cloud. No keys.
+                    </div>
+
+                    <div class="prompt-wrap" style="margin-top:8px">
+                        <div class="prompt-box">
+                            <textarea id="tin"
+                                placeholder="e.g.  Snake game with neon cyberpunk theme&#10;       Sneaker store with cart and filters&#10;       Personal portfolio with dark mode"
+                                rows="4"></textarea>
+                            <div class="prompt-footer">
+                                <div class="detect-badge" id="dbadge">
+                                    <span style="color:var(--muted2)">detected:</span>&nbsp;<span id="dtype"
+                                        style="font-weight:600">—</span>
+                                </div>
+                                <span class="kbd-hint">⌘↵ to build</span>
+                                <button class="send-btn" id="bbtn" onclick="doBuild()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m5 12 14 0M12 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Projects grid (shown once user has projects) -->
+                    <div id="projectsSection"
+                        style="display:none;width:100%;max-width:580px;margin-top:28px;animation:fadeUp .4s .14s ease both">
+                        <div
+                            style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin-bottom:10px">
+                            Your projects</div>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px" id="projectsGrid"></div>
+                    </div>
+                </div>
+
+                <!-- ── WORKSPACE ── -->
+                <div class="workspace gone" id="workspace">
+
+                    <!-- pipeline panel -->
+                    <div class="pipeline">
+                        <div class="panel-head">
+                            <span style="display:flex;align-items:center;gap:6px">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+                                </svg>
+                                Pipeline
+                            </span>
+                            <button class="tb-btn" onclick="goHome()" style="padding:3px 8px;font-size:10px">←
+                                New</button>
+                        </div>
+
+                        <div class="steps">
+                            <div class="step" id="s-refine">
+                                <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="11" cy="11" r="8" />
+                                        <path d="m21 21-4.35-4.35" />
+                                    </svg></div>
+                                <div class="step-info">
+                                    <div class="step-name">Refine</div>
+                                    <div class="step-sub" id="lbl-refine">idea analysis</div>
+                                </div>
+                                <div class="step-badge">waiting</div>
+                            </div>
+
+                            <div class="step" id="s-build">
+                                <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                                        <path d="M12 12h.01M17 12h.01M7 12h.01" />
+                                    </svg></div>
+                                <div class="step-info">
+                                    <div class="step-name">Build</div>
+                                    <div class="step-sub" id="lbl-build">code generation</div>
+                                </div>
+                                <div class="step-badge">waiting</div>
+                            </div>
+
+                            <div class="step" id="s-install">
+                                <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m7.5 4.27 9 5.15" />
+                                        <path
+                                            d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                                        <path d="m3.3 7 8.7 5 8.7-5M12 22V12" />
+                                    </svg></div>
+                                <div class="step-info">
+                                    <div class="step-name">Install</div>
+                                    <div class="step-sub">npm dependencies</div>
+                                </div>
+                                <div class="step-badge">waiting</div>
+                            </div>
+
+                            <div class="step" id="s-test">
+                                <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                        <polyline points="14 2 14 8 20 8" />
+                                        <path d="m9 15 2 2 4-4" />
+                                    </svg></div>
+                                <div class="step-info">
+                                    <div class="step-name">Test</div>
+                                    <div class="step-sub">Playwright checks</div>
+                                </div>
+                                <div class="step-badge">waiting</div>
+                            </div>
+
+                            <div class="step" id="s-serve">
+                                <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <path d="M2 12h20" />
+                                        <path
+                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                    </svg></div>
+                                <div class="step-info">
+                                    <div class="step-name">Serve</div>
+                                    <div class="step-sub">localhost:5173</div>
+                                </div>
+                                <div class="step-badge">waiting</div>
+                            </div>
+                        </div>
+
+                        <div class="logbox" id="logbox"></div>
+
+                        <div class="test-panel" id="testPanel" style="display:none">
+                            <div class="test-panel-head">
+                                <span>Tests</span>
+                                <span id="testSummary" style="font-family:var(--mono);font-size:9px"></span>
+                            </div>
+                            <div id="testRows"></div>
+                        </div>
+
+                        <div class="files-wrap">
+                            <div class="files-head">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                                    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                                </svg>
+                                Files <span id="fileCountBadge" style="font-size:9px;color:var(--muted2)">0</span>
+                            </div>
+                            <div id="flist"></div>
+                        </div>
+                    </div>
+
+                    <!-- right pane -->
+                    <div class="rpane">
+
+                        <div class="rpane-toolbar" id="rpaneToolbar">
+                            <div class="rpt-tabs">
+                                <button class="rpt-tab on" id="rpt-update" onclick="switchRptTab('update',this)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                    </svg>
+                                    Reprompt
+                                </button>
+                                <button class="rpt-tab" id="rpt-feature" onclick="switchRptTab('feature',this)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                    Feature
+                                </button>
+                                <button class="rpt-tab" id="rpt-fix" onclick="switchRptTab('fix',this)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                                    </svg>
+                                    Fix Bugs
+                                </button>
+                            </div>
+
+                            <div class="rpt-input-wrap" id="rptInputWrap">
+                                <input class="rpt-input" id="rptInput" type="text" placeholder="Describe a change…"
+                                    onkeydown="if(event.key==='Enter')rptSend()" />
+                                <button class="rpt-send" id="rptSendBtn" onclick="rptSend()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m5 12 14 0M12 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <button class="rpt-fix-btn" id="rptFixBtn" style="display:none" onclick="doFix()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                                </svg>
+                                Run Auto-Fix
+                            </button>
+                        </div>
+
+                        <div class="pv-pane" id="pvpane">
+                            <div class="browser-bar">
+                                <div class="browser-dots">
+                                    <div class="bd"></div>
+                                    <div class="bd"></div>
+                                    <div class="bd"></div>
+                                </div>
+                                <div class="url-bar">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                    <span class="url-txt" id="urltxt">building…</span>
+                                </div>
+                                <div class="vp-btns">
+                                    <button class="vp-btn on" onclick="setvp('desktop',this)" title="Desktop">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" />
+                                            <line x1="8" y1="21" x2="16" y2="21" />
+                                            <line x1="12" y1="17" x2="12" y2="21" />
+                                        </svg>
+                                    </button>
+                                    <button class="vp-btn" onclick="setvp('tablet',this)" title="Tablet">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+                                            <line x1="12" y1="18" x2="12.01" y2="18" />
+                                        </svg>
+                                    </button>
+                                    <button class="vp-btn" onclick="setvp('mobile',this)" title="Mobile">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+                                            <path d="M12 18h.01" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="preview-area">
+                                <div class="empty-state" id="emptyState">
+                                    <div class="empty-icon">
+                                        <svg viewBox="0 0 56 56" fill="none" width="28" height="28"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <rect width="56" height="56" rx="14" fill="url(#hg1)" />
+                                            <rect x="10" y="37" width="36" height="8" rx="3" fill="white"
+                                                opacity="0.9" />
+                                            <path d="M15 37 L16.5 25 L39.5 25 L41 37 Z" fill="white" opacity="0.85" />
+                                            <path d="M16.5 27 L10 31 L15 31 L16.5 29 Z" fill="white" opacity="0.8" />
+                                            <path d="M33 11 L26 27 L32 27 L24 46 L36 24 L30 24 Z" fill="white"
+                                                opacity="0.95" />
+                                            <defs>
+                                                <linearGradient id="hg1" x1="0" y1="0" x2="56" y2="56">
+                                                    <stop stop-color="#5b7cf7" />
+                                                    <stop offset="1" stop-color="#38bdf8" />
+                                                </linearGradient>
+                                            </defs>
+                                        </svg>
+                                    </div>
+                                    <h3>Preview</h3>
+                                    <p>Your app will render here once built</p>
+                                </div>
+
+                                <div class="overlay" id="overlay">
+                                    <div class="ov-spinner"></div>
+                                    <div class="ov-title" id="overlayTitle">Building your app…</div>
+                                    <div class="progress-wrap">
+                                        <div class="progress-labels"><span id="progStep">Starting</span><span
+                                                id="progPct">0%</span></div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" id="progFill"></div>
+                                        </div>
+                                    </div>
+                                    <div class="ov-steps" id="ovSteps"></div>
+                                </div>
+
+                                <iframe id="frame"></iframe>
+                            </div>
+                        </div>
+
+                        <div class="code-pane" id="codepane">
+                            <div class="code-header">
+                                <span class="code-file" id="codeFile" style="color:var(--muted2)">No file
+                                    selected</span>
+                                <span class="stream-badge" id="streamBadge"></span>
+                            </div>
+
+                            <div class="code-layout">
+                                <div class="fs-sidebar">
+                                    <div class="fs-head">Files <span id="fileCount"
+                                            style="font-size:9px;color:var(--muted2)">0</span></div>
+                                    <div id="fstree">
+                                        <div
+                                            style="padding:14px 12px;font-size:11px;color:var(--muted2);font-family:var(--mono)">
+                                            Build first</div>
+                                    </div>
+                                </div>
+
+                                <div class="code-view" id="codeView">
+                                    <div class="code-none" id="codeNone">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path
+                                                d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                                        </svg>
+                                        <div style="font-size:12px;font-weight:600;color:var(--text)">Select a file
+                                        </div>
+                                        <div style="font-size:11px">Click from the tree on the left</div>
+                                    </div>
+
+                                    <div class="stream-view" id="streamView" style="display:none">
+                                        <div class="stream-code" id="streamCode"></div>
+                                    </div>
+
+                                    <pre class="hlcode" id="hlcode" style="display:none"><code class="hlcode"
+                      id="hlcodeInner"></code></pre>
+                                </div>
+                            </div>
+
+                            <div class="code-toolbar">
+                                <span class="code-toolbar-file" id="toolbarFile">—</span>
+                                <button class="tb-btn" onclick="copyCurrentFile()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                                    </svg>
+                                    Copy
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── CONFIG ──────────────────────────────────────────────────────────────────
+        const WS_URL = 'ws://localhost:7825'
+        const API_URL = 'http://localhost:7824'
+
+        // ── THEME ─────────────────────────────────────────────────────────────────────
+        const savedTheme = localStorage.getItem('locode-theme') || 'dark'
+        document.documentElement.setAttribute('data-theme', savedTheme)
+        updateHlTheme(savedTheme)
+
+        function toggleTheme() {
+            const cur = document.documentElement.getAttribute('data-theme')
+            const next = cur === 'dark' ? 'light' : 'dark'
+            document.documentElement.setAttribute('data-theme', next)
+            localStorage.setItem('locode-theme', next)
+            updateHlTheme(next)
+        }
+
+        function updateHlTheme(theme) {
+            const el = document.getElementById('hlTheme')
+            el.href = theme === 'light'
+                ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+                : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
+        }
+
+        // ── STATE ────────────────────────────────────────────────────────────────────
+        let ws = null, curProj = null, curView = 'preview'
+        let activeFile = null, liveFile = null, liveBuf = ''
+        const FILES = {}
+        let testPass = 0, testFail = 0
+        let hist = JSON.parse(localStorage.getItem('locode-hist') || '[]')
+
+        // ── MODELS ───────────────────────────────────────────────────────────────────
+        const MODELS = [
+            { id: 'llama3.1:8b', label: 'Llama 3.1 8B', icon: '🦙', tag: 'fast', desc: 'Meta. Fast instruction following', role: 'both' },
+            { id: 'llama3.2:3b', label: 'Llama 3.2 3B', icon: '🦙', tag: 'fast', desc: 'Meta. Ultra-fast, lightweight', role: 'both' },
+            { id: 'mistral:7b', label: 'Mistral 7B', icon: '⚡', tag: 'fast', desc: 'Mistral AI. Quick, solid reasoning', role: 'both' },
+            { id: 'phi4:14b', label: 'Phi-4 14B', icon: '🔬', tag: 'quality', desc: 'Microsoft. Excellent reasoning', role: 'both' },
+            { id: 'gemma3:12b', label: 'Gemma 3 12B', icon: '💎', tag: 'quality', desc: 'Google. Strong general model', role: 'both' },
+            { id: 'qwen2.5-coder:14b', label: 'Qwen 2.5 Coder 14B', icon: '⚛', tag: 'code', desc: 'Best local model for React generation', role: 'build' },
+            { id: 'qwen2.5-coder:7b', label: 'Qwen 2.5 Coder 7B', icon: '⚛', tag: 'code', desc: 'Lighter code model, still capable', role: 'build' },
+            { id: 'deepseek-coder-v2:16b', label: 'DeepSeek Coder V2 16B', icon: '🔍', tag: 'code', desc: 'Excellent at multi-file generation', role: 'build' },
+            { id: 'codellama:13b', label: 'Code Llama 13B', icon: '🦙', tag: 'code', desc: 'Meta. Llama fine-tuned for coding', role: 'build' },
+            { id: 'llama3.1:70b', label: 'Llama 3.1 70B', icon: '🦙', tag: 'big', desc: 'Highest quality — needs ~40GB VRAM', role: 'both' },
+            { id: 'qwen2.5:72b', label: 'Qwen 2.5 72B', icon: '⚛', tag: 'big', desc: 'Very capable — needs ~40GB VRAM', role: 'both' },
+        ]
+
+        let selRefine = localStorage.getItem('locode-rm') || 'llama3.1:8b'
+        let selBuild = localStorage.getItem('locode-bm') || 'qwen2.5-coder:14b'
+
+        const PIPE_STEPS = [
+            { id: 'refine', label: 'Refining idea' },
+            { id: 'build', label: 'Generating React' },
+            { id: 'install', label: 'npm install' },
+            { id: 'test', label: 'Running tests' },
+            { id: 'serve', label: 'Starting Vite' },
+        ]
+
+        const TYPE_MAP = [
+            ['tool', ['calculator', 'converter', 'timer', 'clock', 'weather', 'currency', 'generator']],
+            ['game', ['game', 'quiz', 'puzzle', 'trivia', 'snake', 'chess', 'arcade', 'play', 'score']],
+            ['app', ['todo', 'task', 'habit', 'notes', 'planner', 'tracker', 'manager', 'organizer']],
+            ['ecommerce', ['shop', 'store', 'cart', 'product', 'sneaker', 'buy', 'sell', 'retail']],
+            ['saas', ['saas', 'platform', 'subscription', 'pricing', 'b2b', 'crm']],
+            ['restaurant', ['restaurant', 'cafe', 'menu', 'dining', 'food', 'bistro', 'bar']],
+            ['portfolio', ['portfolio', 'resume', 'cv', 'my work', 'showcase']],
+            ['blog', ['blog', 'article', 'news', 'magazine', 'journal']],
+            ['agency', ['agency', 'studio', 'creative', 'marketing', 'branding']],
+            ['dashboard', ['dashboard', 'admin', 'analytics', 'stats', 'metrics', 'monitor']],
+        ]
+
+        // ── INIT ─────────────────────────────────────────────────────────────────────
+        function init() {
+            buildModelDropdowns()
+
+            document.getElementById('ovSteps').innerHTML = PIPE_STEPS.map(s =>
+                `<div class="ov-step" id="ov-${s.id}"><div class="ov-dot"></div>${s.label}</div>`
+            ).join('')
+
+            renderHistory()
+            fetchProjects()
+            connect()
+
+            document.getElementById('tin').addEventListener('input', e => {
+                if (e.target.value.length > 3) guessType(e.target.value)
+            })
+            document.getElementById('tin').addEventListener('keydown', e => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') doBuild()
+            })
+        }
+
+        // ── MODEL DROPDOWNS ───────────────────────────────────────────────────────────
+        function buildModelDropdowns() {
+            document.getElementById('refineOpts').innerHTML = MODELS.map(m => mdOptHTML(m, 'refine', m.id === selRefine)).join('')
+            document.getElementById('buildOpts').innerHTML = MODELS.map(m => mdOptHTML(m, 'build', m.id === selBuild)).join('')
+            document.getElementById('refineLabel').textContent = selRefine
+            document.getElementById('buildLabel').textContent = selBuild
+            document.getElementById('lbl-refine').textContent = selRefine
+            document.getElementById('lbl-build').textContent = selBuild
+        }
+        function mdOptHTML(m, role, sel) {
+            return `<div class="md-opt${sel ? ' sel' : ''}" data-id="${m.id}" data-role="${role}" onclick="selectModel(this)">
+        <div class="md-opt-icon">${m.icon}</div>
+        <div class="md-opt-info">
+          <div class="md-opt-name">${m.label}<span class="md-tag ${m.tag}">${m.tag}</span></div>
+          <div class="md-opt-desc">${m.desc}</div>
+        </div>
+        <div class="md-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </div>`
+        }
+        function toggleDrop(role) {
+            const d = document.getElementById(role + 'Drop'), t = document.getElementById(role + 'Trigger')
+            const open = d.classList.contains('show')
+            document.querySelectorAll('.model-dropdown').forEach(x => x.classList.remove('show'))
+            document.querySelectorAll('.model-trigger').forEach(x => x.classList.remove('open'))
+            if (!open) { d.classList.add('show'); t.classList.add('open') }
+        }
+        function selectModel(el) {
+            const id = el.dataset.id, role = el.dataset.role
+            if (role === 'refine') {
+                selRefine = id; localStorage.setItem('locode-rm', id)
+                document.getElementById('refineLabel').textContent = id
+                document.getElementById('lbl-refine').textContent = id
+                document.querySelectorAll('#refineOpts .md-opt').forEach(o => o.classList.toggle('sel', o.dataset.id === id))
+            } else {
+                selBuild = id; localStorage.setItem('locode-bm', id)
+                document.getElementById('buildLabel').textContent = id
+                document.getElementById('lbl-build').textContent = id
+                document.querySelectorAll('#buildOpts .md-opt').forEach(o => o.classList.toggle('sel', o.dataset.id === id))
+            }
+            document.querySelectorAll('.model-dropdown').forEach(x => x.classList.remove('show'))
+            document.querySelectorAll('.model-trigger').forEach(x => x.classList.remove('open'))
+        }
+        document.addEventListener('click', e => {
+            if (!document.getElementById('refineWrap').contains(e.target) && !document.getElementById('buildWrap').contains(e.target)) {
+                document.querySelectorAll('.model-dropdown').forEach(x => x.classList.remove('show'))
+                document.querySelectorAll('.model-trigger').forEach(x => x.classList.remove('open'))
+            }
+        })
+
+        // ── TYPE DETECTION ────────────────────────────────────────────────────────────
+        function guessType(p) {
+            const pl = p.toLowerCase()
+            for (const [t, kw] of TYPE_MAP) {
+                if (kw.some(k => pl.includes(k))) {
+                    document.getElementById('dtype').textContent = t
+                    document.getElementById('dbadge').classList.add('show'); return
+                }
+            }
+            document.getElementById('dtype').textContent = 'general'
+            document.getElementById('dbadge').classList.add('show')
+        }
+
+        // ── HISTORY ───────────────────────────────────────────────────────────────────
+        function renderHistory() {
+            const w = document.getElementById('histwrap')
+            const pg = document.getElementById('projectsGrid')
+            const ps = document.getElementById('projectsSection')
+
+            if (!hist.length) {
+                w.innerHTML = ''
+                if (ps) ps.style.display = 'none'
+                return
+            }
+
+            w.innerHTML = hist.slice(-8).reverse().map(h => `
+        <div class="hist-item" data-proj="${escAttr(h.p)}" data-prompt="${escAttr(h.prompt || h.p)}">
+          <div class="hi-dot"></div>
+          <div class="hi-title">${esc(h.prompt || h.p)}</div>
+          <div class="hi-tag">${esc(h.t || '?')}</div>
+        </div>
+      `).join('')
+
+            w.querySelectorAll('.hist-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    loadProj(item.dataset.proj, item.dataset.prompt)
+                })
+            })
+
+            if (pg && ps) {
+                ps.style.display = 'block'
+                pg.innerHTML = hist.slice(-6).reverse().map(h => `
+          <div
+            data-proj="${escAttr(h.p)}"
+            data-prompt="${escAttr(h.prompt || h.p)}"
+            style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:11px 13px;cursor:pointer;transition:all .15s;line-height:1.5"
+            onmouseover="this.style.borderColor='rgba(91,124,247,.3)';this.style.transform='translateY(-2px)'"
+            onmouseout="this.style.borderColor='';this.style.transform=''"
+          >
+            <div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(h.prompt || h.p)}</div>
+            <div style="font-size:10.5px;color:var(--accent);font-family:var(--mono)">Open &amp; edit →</div>
+          </div>
+        `).join('')
+
+                pg.querySelectorAll('[data-proj]').forEach(card => {
+                    card.addEventListener('click', () => {
+                        loadProj(card.dataset.proj, card.dataset.prompt)
+                    })
+                })
+            }
+        }
+
+        async function fetchProjects() {
+            try {
+                const res = await fetch(`${API_URL}/projects`)
+                if (!res.ok) return
+                const projects = await res.json()
+                if (!projects.length) return
+                const serverNames = new Set(projects.map(p => p.name))
+                hist = hist.filter(h => serverNames.has(h.p))
+                for (const p of projects) {
+                    if (!hist.find(h => h.p === p.name)) hist.push({ prompt: p.title, p: p.name, t: 'proj' })
+                }
+                localStorage.setItem('locode-hist', JSON.stringify(hist))
+                renderHistory()
+            } catch (e) { }
+        }
+
+        // ── WEBSOCKET ─────────────────────────────────────────────────────────────────
+        function connect() {
+            try {
+                ws = new WebSocket(WS_URL)
+                ws.onopen = () => setStatus('live', 'connected')
+                ws.onclose = () => { setStatus('off', 'disconnected'); setTimeout(connect, 3000) }
+                ws.onerror = () => { }
+                ws.onmessage = e => handle(JSON.parse(e.data))
+            } catch (_) { setTimeout(connect, 3000) }
+        }
+        function wsSend(obj) {
+            if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj))
+            else {
+                const ep = obj.type === 'build' ? '/build' : obj.type === 'update' ? '/update' : null
+                if (ep) fetch(API_URL + ep, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }).catch(() => onErr('Server offline'))
+            }
+        }
+        function handle(m) {
+            switch (m.type) {
+                case 'log': addLog(m.level, m.text); break
+                case 'step': setStep(m.step, m.status); break
+                case 'file': onFile(m.name, m.size, m.content); break
+                case 'detected': onDetected(m.site_type, m.strategy); break
+                case 'progress': setProgress(m.step, m.pct); break
+                case 'done': onDone(m.url, m.project); break
+                case 'error': onErr(m.text); break
+                case 'stream_start': onStreamStart(m.file); break
+                case 'stream': onStreamToken(m.file, m.token); break
+                case 'stream_end': onStreamEnd(m.file, m.content); break
+                case 'test_start': onTestStart(); break
+                case 'test_run': onTestRun(m.attempt); break
+                case 'test_result': onTestResult(m); break
+                case 'test_fixing': onTestFixing(m); break
+            }
+        }
+
+        // ── RPT TOOLBAR STATE ───────────────────────────────────────────────────────
+        let rptMode = 'update'
+
+        function switchRptTab(mode, btn) {
+            rptMode = mode
+            document.querySelectorAll('.rpt-tab').forEach(t => t.classList.remove('on'))
+            btn.classList.add('on')
+            const wrap = document.getElementById('rptInputWrap')
+            const fixBtn = document.getElementById('rptFixBtn')
+            const input = document.getElementById('rptInput')
+            if (mode === 'fix') {
+                wrap.style.display = 'none'; fixBtn.style.display = 'flex'
+            } else {
+                wrap.style.display = 'block'; fixBtn.style.display = 'none'
+                input.placeholder = mode === 'update'
+                    ? 'Describe a change to your app…'
+                    : 'Describe a new feature to add…'
+                input.focus()
+            }
+        }
+
+        function rptSend() {
+            const val = document.getElementById('rptInput').value.trim()
+            if (!val) return
+            document.getElementById('rptInput').value = ''
+            if (rptMode === 'update') {
+                setBusy(true); addLog('INFO', `✏️ Update: ${val}`)
+                wsSend({ type: 'update', project: curProj, prompt: val, build_model: selBuild })
+            } else if (rptMode === 'feature') {
+                setBusy(true); addLog('INFO', `➕ Feature: ${val}`)
+                wsSend({ type: 'update', project: curProj, prompt: `Add this new feature: ${val}`, build_model: selBuild })
+            }
+        }
+
+        function doBuild() {
+            const p = document.getElementById('tin').value.trim()
+            if (!p) return document.getElementById('tin').focus()
+            clearState(); goWorkspace(); setBusy(true); setProgress('Starting…', 0)
+            wsSend({ type: 'build', prompt: p, refine_model: selRefine, build_model: selBuild })
+        }
+
+        function doFix() {
+            if (!curProj) return
+            setBusy(true); addLog('INFO', '🔧 Running auto-fix…')
+            wsSend({ type: 'update', project: curProj, prompt: 'Fix all bugs, blank pages, and broken components.', build_model: selBuild })
+        }
+
+        // ── LOAD EXISTING ─────────────────────────────────────────────────────────────
+        async function loadProj(projName, prompt) {
+            clearState(); goWorkspace(); curProj = projName
+            document.getElementById('rpaneToolbar').classList.add('show')
+            document.getElementById('urltxt').textContent = 'localhost:5173'
+            document.getElementById('emptyState').style.display = 'none'
+            addLog('INFO', `📂 Loading: ${projName}`)
+
+            try {
+                await fetch(`${API_URL}/open/${encodeURIComponent(projName)}`, { method: 'POST' })
+            } catch (_) { }
+
+            const f = document.getElementById('frame')
+            f.style.display = 'block'
+            f.src = 'http://localhost:5173'
+
+            try {
+                const res = await fetch(`${API_URL}/files/${projName}`)
+                if (res.ok) {
+                    const data = await res.json()
+                    const list = document.getElementById('flist'); list.innerHTML = ''
+                    for (const [rel, info] of Object.entries(data)) {
+                        FILES[rel] = info.content
+                        const d = document.createElement('div'); d.className = 'file-item'
+                        d.innerHTML = `<span style="color:var(--muted2)">${fileIcon(rel)}</span><span class="file-name">${rel}</span><span class="file-size">${info.size}</span>`
+                        d.onclick = () => openFile(rel); list.appendChild(d)
+                    }
+                    buildFSTree()
+                    document.getElementById('fileCountBadge').textContent = Object.keys(FILES).length
+                    document.getElementById('fileCount').textContent = Object.keys(FILES).length
+                    addLog('INFO', `✓ Loaded ${Object.keys(data).length} files`)
+                }
+            } catch (e) { addLog('WARN', `Could not load files: ${e.message}`) }
+        }
+
+        // ── UI ────────────────────────────────────────────────────────────────────────
+        function goHome() {
+            document.getElementById('homeView').style.display = 'flex'
+            document.getElementById('workspace').classList.add('gone')
+            document.getElementById('viewTabs').style.display = 'none'
+        }
+        function goWorkspace() {
+            document.getElementById('homeView').style.display = 'none'
+            document.getElementById('workspace').classList.remove('gone')
+            document.getElementById('viewTabs').style.display = 'flex'
+        }
+        function clearState() {
+            Object.keys(FILES).forEach(k => delete FILES[k])
+            liveFile = null; liveBuf = ''; activeFile = null
+            document.getElementById('logbox').innerHTML = ''
+            document.getElementById('flist').innerHTML = ''
+            document.getElementById('testRows').innerHTML = ''
+            document.getElementById('testPanel').style.display = 'none'
+            document.getElementById('dbadge').classList.remove('show')
+            document.getElementById('frame').style.display = 'none'
+            document.getElementById('frame').src = 'about:blank'
+            document.getElementById('urltxt').textContent = 'building…'
+            document.getElementById('fstree').innerHTML = ''
+            document.getElementById('fileCount').textContent = '0'
+            document.getElementById('fileCountBadge').textContent = '0'
+            resetCodeView(); resetSteps()
+            document.getElementById('rpaneToolbar').classList.remove('show')
+        }
+        function resetSteps() {
+            PIPE_STEPS.forEach(s => {
+                const el = document.getElementById(`s-${s.id}`)
+                if (el) { el.className = 'step'; el.querySelector('.step-badge').textContent = 'waiting' }
+                const ov = document.getElementById(`ov-${s.id}`)
+                if (ov) ov.className = 'ov-step'
+            })
+        }
+        function resetCodeView() {
+            document.getElementById('codeNone').style.display = 'flex'
+            document.getElementById('streamView').style.display = 'none'
+            document.getElementById('hlcode').style.display = 'none'
+            document.getElementById('codeFile').textContent = 'No file selected'
+            document.getElementById('codeFile').style.color = 'var(--muted2)'
+            const b = document.getElementById('streamBadge'); b.className = 'stream-badge'; b.style.display = 'none'
+            document.getElementById('toolbarFile').textContent = '—'
+            document.getElementById('streamCode').textContent = ''
+        }
+        function setBusy(on) {
+            document.getElementById('spin').classList.toggle('on', on)
+            document.getElementById('bbtn').disabled = on
+            const rs = document.getElementById('rptSendBtn'); if (rs) rs.disabled = on
+            const rb = document.getElementById('rptFixBtn'); if (rb) rb.disabled = on
+            if (on) { document.getElementById('overlay').classList.add('show'); document.getElementById('emptyState').style.display = 'none' }
+            else document.getElementById('overlay').classList.remove('show')
+        }
+        function addLog(lvl, txt) {
+            const box = document.getElementById('logbox')
+            const now = new Date(), t = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2, '0')).join(':')
+            const d = document.createElement('div'); d.className = 'log-line'
+            d.innerHTML = `<span class="log-time">${t}</span><span class="log-lvl ${lvl}">${lvl.slice(0, 4)}</span><span class="log-msg">${esc(txt)}</span>`
+            box.appendChild(d); box.scrollTop = box.scrollHeight
+        }
+        function setStep(id, st) {
+            const el = document.getElementById(`s-${id}`), ov = document.getElementById(`ov-${id}`)
+            if (el) { el.className = `step${st ? ' ' + st : ''}`; el.querySelector('.step-badge').textContent = st === 'active' ? 'running…' : st === 'done' ? '✓ done' : st }
+            if (ov) ov.className = `ov-step${st ? ' ' + st : ''}`
+        }
+        function setProgress(lbl, pct) {
+            document.getElementById('progFill').style.width = pct + '%'
+            document.getElementById('progPct').textContent = pct + '%'
+            document.getElementById('progStep').textContent = lbl
+        }
+        function setStatus(state, txt) {
+            const d = document.getElementById('dot'); d.className = 'dot'
+            if (state === 'live') d.classList.add('live')
+            else if (state === 'busy') d.classList.add('busy')
+            else if (state === 'err') d.classList.add('err')
+            document.getElementById('stxt').textContent = txt
+        }
+        function onDetected(t, s) {
+            document.getElementById('dtype').textContent = t
+            document.getElementById('dbadge').classList.add('show')
+        }
+        function onDone(url, p) {
+            curProj = p; setStatus('live', 'live'); setBusy(false)
+            document.getElementById('urltxt').textContent = url
+            const f = document.getElementById('frame'); f.style.display = 'block'; f.src = url
+            addLog('SUCCESS', `🎉 Live → ${url}`)
+            document.getElementById('rpaneToolbar').classList.add('show')
+            const prompt = document.getElementById('tin').value.trim()
+            hist = hist.filter(h => h.p !== p)
+            hist.push({ prompt: prompt.slice(0, 55), p, t: document.getElementById('dtype').textContent || '?' })
+            localStorage.setItem('locode-hist', JSON.stringify(hist)); renderHistory()
+        }
+        function onErr(txt) {
+            setStatus('err', 'error'); setBusy(false)
+            addLog('ERROR', txt)
+            document.getElementById('rpaneToolbar').classList.add('show')
+        }
+
+        // ── STREAMING ─────────────────────────────────────────────────────────────────
+        function onStreamStart(fname) {
+            liveFile = fname; liveBuf = ''
+            document.getElementById('codeNone').style.display = 'none'
+            document.getElementById('hlcode').style.display = 'none'
+            document.getElementById('streamView').style.display = 'block'
+            document.getElementById('streamCode').textContent = ''
+            document.getElementById('codeFile').textContent = fname
+            document.getElementById('codeFile').style.color = 'var(--yellow)'
+            const b = document.getElementById('streamBadge'); b.textContent = 'LIVE'; b.className = 'stream-badge live'
+            updateFSItem(fname, 'streaming')
+            document.getElementById('toolbarFile').textContent = fname
+        }
+        let tokenQ = [], tokenTimer = null
+        function onStreamToken(fname, token) {
+            liveBuf += token; tokenQ.push(token)
+            if (!tokenTimer) {
+                tokenTimer = requestAnimationFrame(() => {
+                    const el = document.getElementById('streamCode')
+                    if (el) { el.textContent += tokenQ.join(''); document.getElementById('streamView').scrollTop = 99999 }
+                    tokenQ = []; tokenTimer = null
+                })
+            }
+        }
+        function onStreamEnd(fname, content) {
+            const final = content || liveBuf; FILES[fname] = final
+            showHighlighted(fname, final)
+            document.getElementById('codeFile').textContent = fname
+            document.getElementById('codeFile').style.color = 'var(--text)'
+            const b = document.getElementById('streamBadge'); b.textContent = 'DONE'; b.className = 'stream-badge done'
+            setTimeout(() => { b.className = 'stream-badge'; b.style.display = 'none' }, 2000)
+            updateFSItem(fname, 'done-file')
+            document.getElementById('fileCount').textContent = Object.keys(FILES).length
+            document.getElementById('fileCountBadge').textContent = Object.keys(FILES).length
+            liveFile = null
+        }
+        function onFile(name, size, content) {
+            if (content) FILES[name] = content
+            const list = document.getElementById('flist')
+            const ex = list.querySelector(`[data-fn="${CSS.escape(name)}"]`); if (ex) ex.remove()
+            const d = document.createElement('div'); d.className = 'file-item'; d.dataset.fn = name
+            d.innerHTML = `<span style="color:var(--muted2)">${fileIcon(name)}</span><span class="file-name fresh">${name}</span><span class="file-size">${size}</span>`
+            d.onclick = () => openFile(name); list.appendChild(d)
+            setTimeout(() => d.querySelector('.file-name').classList.remove('fresh'), 2500)
+            buildFSTree()
+            document.getElementById('fileCount').textContent = Object.keys(FILES).length
+            document.getElementById('fileCountBadge').textContent = Object.keys(FILES).length
+        }
+
+        // ── TESTS ─────────────────────────────────────────────────────────────────────
+        function onTestStart() { document.getElementById('testPanel').style.display = 'block'; testPass = 0; testFail = 0 }
+        function onTestRun(att) { const d = document.createElement('div'); d.className = 'test-attempt'; d.textContent = `— Run #${att} —`; document.getElementById('testRows').appendChild(d) }
+        function onTestResult(m) {
+            const icons = { pass: '✅', fail: '❌', run: '⏳', skip: '⏭' }
+            if (m.status === 'pass') testPass++; if (m.status === 'fail') testFail++
+            const d = document.createElement('div'); d.className = 'test-row'
+            d.innerHTML = `<span class="tr-icon ${m.status}">${icons[m.status] || '•'}</span><div><div class="tr-msg">${esc(m.msg)}</div>${m.detail ? `<div class="tr-detail">${esc(m.detail.slice(0, 130))}</div>` : ''}</div>`
+            document.getElementById('testRows').appendChild(d); document.getElementById('testRows').parentElement.scrollTop = 9999
+            const s = document.getElementById('testSummary'); s.textContent = `${testPass}✅ ${testFail}❌`; s.style.color = testFail > 0 ? 'var(--red)' : 'var(--green)'
+        }
+        function onTestFixing(m) {
+            const d = document.createElement('div'); d.className = 'test-attempt'
+            d.textContent = `🔧 Fixing ${m.errors.length} issue(s)… (attempt ${m.attempt})`
+            d.style.color = 'var(--yellow)'; document.getElementById('testRows').appendChild(d); testPass = 0; testFail = 0
+        }
+
+        // ── FILE TREE ─────────────────────────────────────────────────────────────────
+        function buildFSTree() {
+            const names = Object.keys(FILES), groups = {}
+            names.forEach(n => {
+                const parts = n.split('/')
+                const grp = parts.length > 1 ? parts.slice(0, -1).join('/') : 'root'
+                if (!groups[grp]) groups[grp] = []
+                groups[grp].push(n)
+            })
+            document.getElementById('fstree').innerHTML = Object.entries(groups).map(([g, files]) =>
+                `<div class="fs-group">${g}</div>` + files.map(f =>
+                    `<div class="fs-item${f === activeFile ? ' on' : ''}" id="fsi-${f.replace(/[/.]/g, '_')}" onclick="openFile(${JSON.stringify(f)})">
+            ${fileIcon(f)} ${f.split('/').pop()}
+          </div>`
+                ).join('')
+            ).join('')
+        }
+        function updateFSItem(fname, cls) { buildFSTree(); const el = document.getElementById(`fsi-${fname.replace(/[/.]/g, '_')}`); if (el) el.classList.add(cls) }
+        function openFile(name) {
+            activeFile = name
+            const content = FILES[name]; if (!content) { addLog('WARN', `Not loaded: ${name}`); return }
+            if (curView !== 'code') { const ct = document.querySelector('.vtab:nth-child(2)'); if (ct) setView('code', ct) }
+            showHighlighted(name, content); buildFSTree()
+        }
+        function showHighlighted(name, content) {
+            document.getElementById('codeNone').style.display = 'none'
+            document.getElementById('streamView').style.display = 'none'
+            const pre = document.getElementById('hlcode'), code = document.getElementById('hlcodeInner')
+            pre.style.display = 'block'
+            const ext = name.split('.').pop()
+            const lm = { jsx: 'javascript', tsx: 'typescript', js: 'javascript', ts: 'typescript', css: 'css', html: 'xml', json: 'json', md: 'markdown' }
+            code.className = `hlcode language-${lm[ext] || 'plaintext'}`
+            code.textContent = content
+            if (window.hljs) hljs.highlightElement(code)
+            document.getElementById('codeFile').textContent = name
+            document.getElementById('codeFile').style.color = 'var(--text)'
+            document.getElementById('toolbarFile').textContent = name
+            document.getElementById('codeView').scrollTop = 0
+        }
+
+        // ── VIEW SWITCH ───────────────────────────────────────────────────────────────
+        function setView(view, btn) {
+            curView = view
+            document.querySelectorAll('.vtab').forEach(b => b.classList.remove('on')); btn.classList.add('on')
+            document.getElementById('pvpane').classList.toggle('gone', view === 'code')
+            document.getElementById('codepane').classList.toggle('show', view === 'code')
+            if (view === 'code') {
+                buildFSTree()
+                if (liveFile) {
+                    document.getElementById('codeNone').style.display = 'none'
+                    document.getElementById('streamView').style.display = 'block'
+                } else if (activeFile && FILES[activeFile]) showHighlighted(activeFile, FILES[activeFile])
+            }
+        }
+
+        // ── VIEWPORT ─────────────────────────────────────────────────────────────────
+        function setvp(mode, btn) {
+            document.querySelectorAll('.vp-btn').forEach(b => b.classList.remove('on')); btn.classList.add('on')
+            const f = document.getElementById('frame'); f.className = mode === 'desktop' ? '' : mode
+            if (f.style.display !== 'none') f.style.display = 'block'
+        }
+
+        // ── UTILS ─────────────────────────────────────────────────────────────────────
+        function openInBrowser() { if (curProj) window.open('http://localhost:5173', '_blank') }
+        async function dlZip() {
+            const names = Object.keys(FILES); if (!names.length) { addLog('WARN', 'No files yet'); return }
+            try {
+                const zip = new JSZip(), folder = curProj || 'locode-project'
+                names.forEach(n => zip.file(`${folder}/${n}`, FILES[n]))
+                zip.file(`${folder}/README.md`, `# ${folder}\n\nBuilt with Locode.\n\n## Run\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n`)
+                const blob = await zip.generateAsync({ type: 'blob' })
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${folder}.zip`; a.click(); URL.revokeObjectURL(a.href)
+                addLog('SUCCESS', `📦 Downloaded ${names.length} files`)
+            } catch (e) { addLog('ERROR', `ZIP error: ${e.message}`) }
+        }
+        function copyCurrentFile() {
+            if (!activeFile || !FILES[activeFile]) return
+            navigator.clipboard.writeText(FILES[activeFile])
+            const btn = event.currentTarget, orig = btn.innerHTML
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>Copied!'
+            setTimeout(() => btn.innerHTML = orig, 1800)
+        }
+
+        function esc(t) {
+            return String(t || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+        }
+        function escAttr(t) {
+            return String(t || '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '&#10;')
+                .replace(/\r/g, '&#13;')
+        }
+
+        function fileIcon(f) {
+            const e = f.split('.').pop()
+            const icons = {
+                jsx: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#61dafb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+                tsx: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3178c6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+                css: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/></svg>`,
+                json: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/></svg>`,
+                html: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e44d26" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`,
+            }
+            return icons[e] || `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/></svg>`
+        }
+
+        init()
+    </script>
+</body>
+
+</html>

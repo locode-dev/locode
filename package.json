@@ -1,0 +1,55 @@
+{
+  "name": "locode",
+  "version": "0.1.0",
+  "description": "A fully local AI app builder powered by Ollama.",
+  "author": "Syed Shadman Akbar",
+  "license": "MIT",
+  "private": true,
+  "main": "electron/main.cjs",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
+    "wait-on": "^9.0.4"
+  },
+  "scripts": {
+    "electron:dev": "electron .",
+    "dist": "electron-builder --mac dmg",
+    "prep:node": "./scripts/download-node-macos.sh",
+    "prep:backend": "rm -rf dist-backend && mkdir -p dist-backend && cp dist/locode-backend dist-backend/locode-backend && chmod +x dist-backend/locode-backend",
+    "package:all": "npm run prep:node && npm run prep:backend && npm run dist"
+  },
+  "build": {
+    "appId": "dev.locode.app",
+    "productName": "Locode",
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/locode.icns",
+      "hardenedRuntime": false
+    },
+    "files": [
+      "electron/**/*",
+      "electron/main.cjs",
+      "electron/ollama-bootstrap.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-backend",
+        "to": "backend"
+      },
+      {
+        "from": "vendor/node",
+        "to": "node"
+      },
+      {
+        "from": "vendor/ms-playwright",
+        "to": "ms-playwright"
+      }
+    ]
+  }
+}

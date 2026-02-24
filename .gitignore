@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.spec
+
+# Build outputs
+dist/
+dist-backend/
+build/
+
+# Electron
+*.dmg
+*.blockmap
+
+# Node
+node_modules/
+vendor/node/
+
+# Playwright browsers (vendored)
+vendor/ms-playwright/
+
+# Logs
+logs/
+
+# macOS
+.DS_Store
