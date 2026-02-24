@@ -51,8 +51,10 @@ All locally. Always.
 
 ## 💻 Installation (macOS)
 
+[![Download for macOS](https://img.shields.io/badge/⬇_Download_Locode-macOS_DMG-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/locode-dev/locode/releases/download/v1.0.0/Locode-v1.0.0-arm64.dmg)
+
 1. Click the **Download** button above
-2. Open `Locode-v1.0.0-arm64.dmg`
+2. Open [`Locode-v1.0.0-arm64.dmg`](https://github.com/locode-dev/locode/releases/download/v1.0.0/Locode-v1.0.0-arm64.dmg)
 3. Drag **Locode** to your Applications folder
 4. Make sure [Ollama](https://ollama.ai) is running
 5. Open Locode and start building
