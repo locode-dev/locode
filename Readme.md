@@ -51,7 +51,7 @@ All locally.
 
 ### Run
 
-    git clone https://github.com/locodehq/locode
+    git clone https://github.com/locode-dev/locode
     cd locode
     pip3 install -r requirements.txt
     python3 server.py
