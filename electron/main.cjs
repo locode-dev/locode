@@ -96,11 +96,22 @@ function createMainWindow() {
     return mainWin;
 }
 
+function playwrightBrowsersPath() {
+    if (isPackaged()) {
+        // This is where electron-builder extraResources puts it
+        return path.join(process.resourcesPath, "ms-playwright");
+    }
+    // Dev: use repo vendor folder
+    return path.join(__dirname, "..", "vendor", "ms-playwright");
+}
+
+
 function startBackend(extraEnv = {}) {
     const exe = backendPath();
 
+
     const nodeBin = isPackaged() ? path.join(getResourcesPath(), "node", "bin") : "";
-    const browsersPath = isPackaged() ? path.join(getResourcesPath(), "ms-playwright") : "";
+    const browsersPath = playwrightBrowsersPath();
 
     const env = {
         ...process.env,
@@ -108,8 +119,8 @@ function startBackend(extraEnv = {}) {
         LOCODE_NPM: npmPath(),
         ...(nodeBin ? { PATH: `${nodeBin}:${process.env.PATH || ""}` } : {}),
 
-        ...(browsersPath ? { PLAYWRIGHT_BROWSERS_PATH: browsersPath } : {}),
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: isPackaged() ? "1" : (process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD || ""),
+        PLAYWRIGHT_BROWSERS_PATH: browsersPath,
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1",
 
         ...extraEnv
     };
