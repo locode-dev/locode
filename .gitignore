@@ -25,3 +25,49 @@ logs/
 
 # macOS
 .DS_Store
+# Build outputs (DO NOT COMMIT)
+dist/
+dist-electron/
+dist-backend/
+build/
+*.dmg
+*.blockmap
+*.app
+*.asar
+
+# Vendor binaries (optional - usually DO NOT COMMIT)
+vendor/node/
+vendor/ms-playwright/
+
+# Node
+node_modules/
+
+# Logs
+logs/
+
+# macOS
+.DS_Store
+
+# Build outputs (DO NOT COMMIT)
+dist/
+dist-electron/
+dist-backend/
+build/
+*.dmg
+*.blockmap
+*.app
+*.asar
+
+# Vendor binaries (usually DO NOT COMMIT)
+vendor/node/
+vendor/ms-playwright/
+
+# Node
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store
