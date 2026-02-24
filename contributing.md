@@ -1,72 +1,70 @@
-# Contributing to Hateable
+# 🤝 Contributing to Locode
 
-Thanks for your interest! Here's how to get started.
+Thank you for contributing to Locode.
 
-## Development Setup
+Locode is built on three principles:
 
-```bash
-git clone https://github.com/your/hateable
-cd hateable
-pip3 install -r requirements.txt
-python3 server.py
-```
+1.  Fully local execution
+2.  Deterministic + repairable output
+3.  Clean developer experience
 
-The UI at `ui/index.html` is a single file — no build step required. Just edit and reload.
+------------------------------------------------------------------------
 
-## Project Structure
+## 🛠 Development Setup
 
-| File | Purpose |
-|------|---------|
-| `server.py` | HTTP + WebSocket server, pipeline orchestration |
-| `agents/refiner.py` | Converts free-text idea → JSON spec |
-| `agents/builder.py` | Generates React components via Ollama |
-| `agents/tester.py` | Playwright browser testing |
-| `ui/index.html` | Single-file frontend (vanilla JS) |
+Prerequisites:
 
-## Key Concepts
+-   Python 3.9+
+-   Node.js 20 LTS
+-   Ollama running
 
-### Adding a new site type
-In `agents/refiner.py`, add to `SITE_TYPES` and `SECTION_MAP`:
-```python
-SITE_TYPES = {
-    ...
-    "mytype": ["keyword1", "keyword2"],
-}
-SECTION_MAP = {
-    ...
-    "mytype": ["Hero", "MySection", "Contact"],
-}
-```
+Clone & Run:
 
-### Improving the fix pipeline
-`agents/builder.py → _fix_component()` — this is where LLM-assisted repairs happen.
-The `_sanitize_jsx()` method does deterministic post-processing (no LLM needed).
+    git clone https://github.com/locodehq/locode
+    cd locode
+    pip3 install -r requirements.txt
+    python3 server.py
 
-### Adding UI features
-The frontend is pure vanilla JS in `ui/index.html`. WebSocket messages follow this format:
-```js
-// From server to client:
-{type: 'log', level: 'INFO', text: '...'}
-{type: 'step', step: 'build', status: 'active'}
-{type: 'file', name: 'src/App.jsx', size: '2.1KB', content: '...'}
-{type: 'done', url: 'http://localhost:5173', project: 'my-app'}
+Open:
 
-// From client to server:
-{type: 'build', prompt: '...', refine_model: '...', build_model: '...'}
-{type: 'update', project: 'my-app', prompt: '...', build_model: '...'}
-```
+    http://localhost:7824
 
-## Pull Request Guidelines
+------------------------------------------------------------------------
 
-- Keep PRs focused — one feature or fix per PR
-- Test with at least one Ollama model before submitting
-- UI changes: screenshot before/after in the PR description
-- Agent changes: describe what prompted/fixed and how you tested it
+## 🧠 Agent Overview
 
-## Reporting Issues
+Refiner → Builder → Tester
 
-Please include:
-- Your OS and Python version
-- Which Ollama model(s) you're using
-- The exact prompt that caused the issue
-- Any error messages from the terminal
+agents/refiner.py\
+agents/builder.py\
+agents/tester.py
+
+------------------------------------------------------------------------
+
+## 🔄 Pull Request Guidelines
+
+-   One feature per PR
+-   No build artifacts
+-   Test with at least one Ollama model
+-   Include screenshots for UI changes
+
+Do NOT commit:
+
+-   dist/
+-   dist-electron/
+-   node_modules/
+-   Playwright browsers
+-   DMG files
+
+------------------------------------------------------------------------
+
+## 🐛 Reporting Issues
+
+Include:
+
+-   OS + version
+-   Python version
+-   Node version
+-   Ollama model
+-   Full error logs
+-   Exact prompt used
