@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="locode.png" alt="Locode Logo" width="100" />
+<img src="assets/locode.png" alt="Locode Logo" width="100" />
 
 # ⚡ Locode
 
