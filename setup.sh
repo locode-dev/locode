@@ -39,9 +39,10 @@ echo "📦 Available Ollama models:"
 ollama list 2>/dev/null || echo "  (none yet)"
 
 echo ""
-echo "💡 Recommended: ollama pull llama3"
+echo "💡 Recommended: ollama pull llama3.1:8b"
 echo "   Or use:      ollama pull mistral"
-echo "   Or use:      ollama pull qwen2.5-coder:7b"
+echo "   Or use:      ollama pull qwen2.5-coder"
+echo "   Locode works with ANY open-source model supported by Ollama!"
 echo ""
 
 # Install Python dependencies
@@ -58,7 +59,8 @@ echo "════════════════════════�
 echo "✅ Setup complete!"
 echo ""
 echo "📝 To change the AI model, edit pipeline.py:"
-echo "   OLLAMA_MODEL = 'qwen2.5-coder:7b'  # or mistral, deepseek-coder, etc."
+echo "   OLLAMA_MODEL = 'llama3.1:8b'  # or qwen, mistral, deepseek, etc."
+echo "   Locode supports any model in the Ollama library!"
 echo ""
 echo "🚀 To start the pipeline:"
 echo "   python3 pipeline.py"
