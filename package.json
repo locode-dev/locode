@@ -15,15 +15,16 @@
     "wait-on": "^9.0.4"
   },
   "scripts": {
-    "electron:dev": "electron .",
+    "electron:dev": "pkill -f locode || true && lsof -ti :7824,7825 | xargs kill -9 || true && electron .",
     "dist": "electron-builder --mac dmg",
     "prep:node": "./scripts/download-node-macos.sh",
-    "prep:backend": "rm -rf dist-backend && mkdir -p dist-backend && cp dist/locode-backend dist-backend/locode-backend && chmod +x dist-backend/locode-backend",
-    "package:all": "npm run prep:node && npm run prep:backend && npm run dist"
+    "build:backend": "lsof -ti :7824,7825 | xargs kill -9 || true && rm -rf build dist dist-backend && python3 -m PyInstaller --clean locode-backend.spec --noconfirm",
+    "prep:backend": "rm -rf dist-backend && mkdir -p dist-backend && cp dist/locode-backend-v4 dist-backend/locode-backend-v4 && chmod +x dist-backend/locode-backend-v4",
+    "package:all": "npm run build:backend && npm run prep:node && npm run prep:backend && npm run dist"
   },
   "build": {
-    "appId": "dev.locode.app",
-    "productName": "Locode",
+    "appId": "dev.locode.v4",
+    "productName": "Locode V4",
     "mac": {
       "target": [
         "dmg"

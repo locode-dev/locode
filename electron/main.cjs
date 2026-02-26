@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, nativeImage, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, nativeImage, ipcMain, shell, Menu } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
 const net = require("net");
@@ -11,6 +11,20 @@ let splashWin = null;
 let setupWin = null;
 let mainWin = null;
 
+backendProcess = spawn("python", ["server.py"])
+
+app.on("before-quit", () => {
+    if (backendProcess) {
+        backendProcess.kill("SIGTERM")
+    }
+})
+
+process.on("exit", () => {
+    if (backendProcess) {
+        backendProcess.kill("SIGTERM")
+    }
+})
+
 // ── First-run detection ──────────────────────────────────────────────────────
 const FIRST_RUN_FLAG = path.join(app.getPath("userData"), ".locode-initialized");
 function isFirstRun() { return !fs.existsSync(FIRST_RUN_FLAG); }
@@ -22,7 +36,7 @@ function markInitialized() {
 function isPackaged() { return app.isPackaged; }
 function getResourcesPath() { return process.resourcesPath; }
 function backendPath() {
-    if (isPackaged()) return path.join(process.resourcesPath, "backend", "locode-backend");
+    if (isPackaged()) return path.join(process.resourcesPath, "backend", "locode-backend-v4");
     return path.join(__dirname, "..", "server.py");
 }
 function nodePath() {
@@ -96,6 +110,7 @@ function createSplash() {
 // ── Main window ──────────────────────────────────────────────────────────────
 function createMainWindow() {
     mainWin = new BrowserWindow({
+        title: "Locode — Local AI App Builder",
         width: 1280, height: 820, show: false,
         icon: path.join(__dirname, "..", "build", "locode.icns"),
         webPreferences: {
@@ -246,7 +261,7 @@ async function runFirstTimeSetup() {
     markInitialized();
     await new Promise(r => setTimeout(r, 500));
     sendSetup({ type: "launch" });
-    await mainWin.loadURL("http://localhost:7824");
+    await mainWin.loadURL(`http://127.0.0.1:7824/?cb=${Date.now()}`);
 }
 
 // ── Normal boot ───────────────────────────────────────────────────────────────
@@ -276,11 +291,79 @@ async function boot() {
     await waitForPort(7824, "127.0.0.1", 60000);
 
     sendStatus("Loading app…");
-    await mainWin.loadURL("http://localhost:7824");
+    await mainWin.loadURL(`http://127.0.0.1:7824/?cb=${Date.now()}`);
+}
+
+function setupMenu() {
+    const template = [
+        {
+            label: app.name,
+            submenu: [
+                { role: "about" },
+                { type: "separator" },
+                { role: "services" },
+                { type: "separator" },
+                { role: "hide" },
+                { role: "hideOthers" },
+                { role: "unhide" },
+                { type: "separator" },
+                { role: "quit" }
+            ]
+        },
+        { role: "editMenu" },
+        { role: "viewMenu" },
+        { role: "windowMenu" },
+        {
+            label: "Maintenance",
+            submenu: [
+                {
+                    label: "Factory Reset (Clear all data)",
+                    click: async () => {
+                        const { response } = await dialog.showMessageBox({
+                            type: "warning",
+                            buttons: ["Cancel", "Yes, Reset Everything"],
+                            title: "Factory Reset",
+                            message: "Are you sure you want to reset Locode?",
+                            detail: "This will delete all your settings, projects, and the initialization flag. The app will quit after reset.",
+                            noLink: true
+                        });
+                        if (response === 1) {
+                            const userData = app.getPath("userData");
+                            console.log("Resetting app data in:", userData);
+                            try {
+                                // Kill backend for safety
+                                if (backendProc) backendProc.kill("SIGKILL");
+
+                                // Recursively delete userData
+                                fs.rmSync(userData, { recursive: true, force: true });
+
+                                await dialog.showMessageBox({
+                                    type: "info",
+                                    title: "Reset Successful",
+                                    message: "Locode has been reset. Please relaunch the app."
+                                });
+                                app.quit();
+                            } catch (e) {
+                                dialog.showErrorBox("Reset Failed", e.message);
+                            }
+                        }
+                    }
+                },
+                {
+                    label: "Open App Data Folder",
+                    click: () => { shell.openPath(app.getPath("userData")); }
+                }
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
 }
 
 // ── App init ─────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+    setupMenu();
     // Clear disk cache so index.html is always fresh
     const { session } = require("electron");
     session.defaultSession.clearCache().catch(() => { });

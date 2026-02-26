@@ -59,7 +59,19 @@ All locally. Always.
 4. Make sure [Ollama](https://ollama.ai) is running
 5. Open Locode and start building
 
-> **First launch:** If macOS blocks the app → **System Settings → Privacy & Security → Open Anyway**
+> **First launch:** If macOS blocks the app ("Apple could not verify"):
+> 1. Right-click (or Control-click) **Locode** in your Applications folder
+> 2. Select **Open** from the menu
+> 3. Click **Open** again in the warning dialog
+
+Alternatively, go to **System Settings → Privacy & Security** and scroll down to click **Open Anyway**.
+
+### 🧹 Full Uninstallation / Reset
+To completely remove all Locode data (including generated projects and settings) on macOS, run this in Terminal:
+```bash
+rm -rf ~/Library/Application\ Support/locode*
+```
+*(You can also use the **Maintenance → Factory Reset** menu option inside the app.)*
 
 ---
 
@@ -71,12 +83,17 @@ All locally. Always.
 - Node.js 20 LTS
 - [Ollama](https://ollama.ai) installed and running
 
-### 1. Pull the required models
+### 1. Pull your preferred models
+
+Locode works with any open-source models supported by [Ollama](https://ollama.ai). For the best experience, we recommend using a code-specialized model for generation:
 
 ```bash
-ollama pull llama3.1:8b
-ollama pull qwen2.5-coder:14b
+# Recommended models
+ollama pull llama3.1:8b          # For idea refinement
+ollama pull qwen2.5-coder:14b    # For React/Tailwind generation
 ```
+
+*Note: You can use any model available in the Ollama library.*
 
 ### 2. Clone and install
 

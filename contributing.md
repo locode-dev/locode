@@ -76,6 +76,6 @@ Include:
 | OS + version | macOS 14.2 |
 | Python version | 3.11.4 |
 | Node version | 20.10.0 |
-| Ollama model | qwen2.5-coder:14b |
+| Ollama model | llama3.1:8b (or your chosen model) |
 | Full error logs | complete stack trace |
 | Exact prompt used | the input that caused the issue |

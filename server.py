@@ -6,6 +6,8 @@ WebForge Server  —  HTTP :7824  |  WebSocket :7825
 - Stop/unload model immediately after each stage (VRAM conservation)
 - Fix loop uses npm run build for real errors + full codebase context
 """
+import atexit
+import signal
 import sys, json, asyncio, logging, threading, time, re, subprocess, os, urllib3
 urllib3.disable_warnings()
 from pathlib import Path
@@ -23,7 +25,13 @@ from agents.refiner  import RefinerAgent
 from agents.builder  import BuilderAgent, set_stream_callback
 from agents.tester   import TesterAgent, set_emit as set_tester_emit
 
-BASE_DIR = Path(__file__).parent
+if hasattr(sys, "_MEIPASS"):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).parent
+
+print(f"DEBUG: BASE_DIR = {BASE_DIR}")
+print(f"DEBUG: UI_DIR = {BASE_DIR / 'ui'}")
 PROD_DIR = BASE_DIR / "production-ready"
 LOGS_DIR = BASE_DIR / "logs"
 OLLAMA_URL = "http://localhost:11434"
@@ -136,7 +144,32 @@ def stop_model(model: str):
         elog("INFO", f"   🗑️  Unloaded {model}")
     except: pass
 
+def ensure_node_deps(proj_dir: Path) -> bool:
+    vite_bin = proj_dir / "node_modules" / ".bin" / (
+        "vite.cmd" if os.name == "nt" else "vite"
+    )
 
+    if vite_bin.exists():
+        return True
+
+    elog("INFO", "📦 Installing dependencies (npm install)…")
+
+    try:
+        r = subprocess.run(
+            ["npm", "install"],
+            cwd=proj_dir,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if r.returncode == 0:
+            elog("INFO", "   ✅ npm install complete")
+            return True
+        elog("ERROR", f"   ❌ npm install failed:\n{r.stderr[:300]}")
+        return False
+    except Exception as e:
+        elog("ERROR", f"   ❌ npm install crashed: {e}")
+        return False
 # ── Vite management ───────────────────────────────────────────────────────────
 
 def start_vite(proj_dir: Path):
@@ -284,6 +317,8 @@ def run_pipeline(prompt: str, refine_model: str, build_model: str):
         estep("serve", "active")
         eprog("Starting Vite…", 72)
         elog("INFO", f"🌐 Starting Vite on :{DEV_PORT}")
+        if not ensure_node_deps(proj_dir):
+            eerr("Failed to install dependencies"); return
         start_vite(proj_dir)
         time.sleep(8)  # Give Vite time to compile
 
@@ -347,6 +382,9 @@ def run_pipeline(prompt: str, refine_model: str, build_model: str):
 
             # Restart Vite so it recompiles
             elog("INFO", "   🔄 Restarting Vite…")
+            if not ensure_node_deps(proj_dir):
+                eerr("Dependency install failed")
+                return
             start_vite(proj_dir)
             time.sleep(8)
 
@@ -566,6 +604,7 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
         eprog("Deciding targets…", 22)
 
         targets = _decide_targets(update_prompt, components, codebase_ctx, build_model)
+        targets = [t for t in targets if re.match(r"^[A-Z][A-Za-z0-9_]*$", t)]
 
         if not targets:
             # Fallback: ask the user's prompt to name the component directly,
@@ -637,6 +676,9 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
         estep("serve", "active")
         eprog("Restarting Vite…", 65)
         elog("INFO", "🌐 Restarting Vite…")
+        if not ensure_node_deps(proj_dir):
+            eerr("Dependency install failed")
+            return
         start_vite(proj_dir)
         time.sleep(8)
 
@@ -691,6 +733,9 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
             stop_model(build_model)
 
             elog("INFO", "   🔄 Restarting Vite after fix…")
+            if not ensure_node_deps(proj_dir):
+                eerr("Dependency install failed")
+                return
             start_vite(proj_dir)
             time.sleep(8)
 
@@ -886,18 +931,51 @@ async def main():
     global MAIN_LOOP
     MAIN_LOOP = asyncio.get_running_loop()
     threading.Thread(
-        target=HTTPServer(("0.0.0.0", UI_PORT), UIHandler).serve_forever,
+        target=HTTPServer(("127.0.0.1", UI_PORT), UIHandler).serve_forever,
         daemon=True
     ).start()
     print(f"\n{'━'*46}")
-    print(f"  ⚡ WebForge UI  →  http://localhost:{UI_PORT}")
-    print(f"  🔌 WebSocket   →  ws://localhost:{WS_PORT}")
+    print(f"  ⚡ Locode v1.0.0 Starting...")
+    print(f"  ⚡ UI Server   →  http://127.0.0.1:{UI_PORT}")
+    print(f"  🔌 WebSocket   →  ws://127.0.0.1:{WS_PORT}")
     print(f"  🧠 Refine      :  {DEFAULT_REFINE}")
     print(f"  🏗️  Build       :  {DEFAULT_BUILD}")
-    print(f"  📝 Models auto-pulled + unloaded after each stage")
+    print(f"  📝 Local development mode")
     print(f"{'━'*46}\n")
-    async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT):
+    async with websockets.serve(ws_handler, "127.0.0.1", WS_PORT):
         await asyncio.Future()
+
+        import atexit
+import signal
+
+def shutdown_all():
+    print("\n🛑 Shutting down Locode backend...")
+
+    # Kill Vite
+    if active_vite.get("proc"):
+        try:
+            active_vite["proc"].terminate()
+            active_vite["proc"].wait(timeout=5)
+            print("   ✅ Vite stopped")
+        except:
+            pass
+
+    # Unload models (best effort)
+    try:
+        stop_model(DEFAULT_REFINE)
+        stop_model(DEFAULT_BUILD)
+        print("   ✅ Ollama models unloaded")
+    except:
+        pass
+
+atexit.register(shutdown_all)
+
+def handle_signal(sig, frame):
+    shutdown_all()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, handle_signal)
+signal.signal(signal.SIGTERM, handle_signal)
 
 if __name__ == "__main__":
     try:
