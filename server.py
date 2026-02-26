@@ -815,6 +815,12 @@ class UIHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         else:
+            # Disable caching so Electron always gets fresh index.html
+            if self.path in ("/", "/index.html", "") or self.path.endswith(".html"):
+                self.send_response(200)
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
             super().do_GET()
     def do_POST(self):
         if self.path == "/build":
@@ -832,6 +838,31 @@ class UIHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
+        elif self.path == "/upload-project":
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            name = body.get("name", "imported")
+            files = body.get("files", {})
+            
+            # Sanitize project name
+            pname = re.sub(r"[^a-z0-9]", "", name.lower())[:20] or "imported"
+            proj_dir = PROD_DIR / pname
+            proj_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write files to disk
+            for rel_path, content in files.items():
+                fp = proj_dir / rel_path
+                fp.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    fp.write_text(content, encoding="utf-8")
+                except Exception as e:
+                    log.error(f"Failed to write {rel_path}: {e}")
+            
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok":True, "project": pname}).encode())
         elif self.path == "/update":
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length))

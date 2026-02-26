@@ -147,6 +147,7 @@
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            height: 100%;
             overflow: hidden;
             transition: background .25s, border-color .25s;
         }
@@ -2044,6 +2045,16 @@
                     Open in new tab
                 </button>
 
+                <button class="sb-btn" onclick="importProject()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    Import Project
+                </button>
+
                 <button class="sb-btn primary" onclick="dlZip()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round">
@@ -3060,8 +3071,184 @@
             return icons[e] || `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/></svg>`
         }
 
+
+        // ── PROJECT IMPORT ────────────────────────────────────────────────────────────
+        let importedFolder = null
+
+        function importProject() {
+            importedFolder = null
+            document.getElementById('importFolderLabel').textContent = 'Click to select project folder'
+            document.getElementById('importFolderSub').textContent = 'node_modules, .git and dist are excluded'
+            document.getElementById('importFolderSub').style.color = 'var(--muted2)'
+            document.getElementById('importFileBadge').style.display = 'none'
+            document.getElementById('importPrompt').value = ''
+            document.getElementById('importBuildBtn').disabled = true
+            document.getElementById('importBuildBtn').style.opacity = '.4'
+            document.getElementById('importBuildBtn').style.cursor = 'not-allowed'
+            const modal = document.getElementById('importModal')
+            modal.style.display = 'flex'
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').style.display = 'none'
+        }
+
+        async function pickFolder() {
+            // Electron IPC path
+            if (window.locode && window.locode.chooseFolder) {
+                const result = await window.locode.chooseFolder()
+                if (!result) return
+                importedFolder = result
+                _onFolderPicked(result.name, result.fileCount)
+                return
+            }
+            // Web fallback: show a message (folder API not available in browser)
+            addLog('WARN', 'Folder picker only available in the desktop app.')
+        }
+
+        function _onFolderPicked(name, fileCount) {
+            document.getElementById('importFolderLabel').textContent = '📁 ' + name
+            document.getElementById('importFolderSub').textContent = fileCount + ' files loaded — ready to import'
+            document.getElementById('importFolderSub').style.color = 'var(--green)'
+            const badge = document.getElementById('importFileBadge')
+            badge.style.display = 'flex'
+            document.getElementById('importFileCount').textContent = fileCount + ' files from "' + name + '"'
+            document.getElementById('importBuildBtn').disabled = false
+            document.getElementById('importBuildBtn').style.opacity = '1'
+            document.getElementById('importBuildBtn').style.cursor = 'pointer'
+        }
+
+        async function doImportBuild() {
+            if (!importedFolder) return
+            const prompt = document.getElementById('importPrompt').value.trim()
+            closeImportModal()
+            clearState(); goWorkspace(); setBusy(true); setProgress('Importing project…', 5)
+            addLog('INFO', `📦 Importing: ${importedFolder.name} (${importedFolder.fileCount} files)`)
+
+            // Send files to backend
+            try {
+                const resp = await fetch(`${API_URL}/upload-project`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: importedFolder.name, files: importedFolder.files })
+                })
+                const data = await resp.json()
+                if (!data.ok) { onErr('Import failed: ' + (data.error || 'unknown')); return }
+                const projName = data.project
+                curProj = projName
+                addLog('INFO', `✅ Project uploaded as "${projName}"`)
+
+                // If there's a prompt, trigger an update pipeline after import
+                if (prompt) {
+                    addLog('INFO', `✏️  Building on top of it: ${prompt}`)
+                    // Listen for the 'done' event from the import, then send update
+                    // We set a one-time listener via a flag
+                    _pendingUpdateAfterImport = { project: projName, prompt, build_model: selBuild }
+                }
+            } catch (e) {
+                onErr('Import request failed: ' + e.message)
+            }
+        }
+
+        // After import finishes (done event), fire the update if pending
+        let _pendingUpdateAfterImport = null
+        const _origOnDone = onDone
+        function onDone(url, p) {
+            _origOnDone(url, p)
+            if (_pendingUpdateAfterImport && _pendingUpdateAfterImport.project === p) {
+                const upd = _pendingUpdateAfterImport
+                _pendingUpdateAfterImport = null
+                setTimeout(() => {
+                    setBusy(true)
+                    addLog('INFO', `✏️  Now building on top: ${upd.prompt}`)
+                    wsSend({ type: 'update', project: upd.project, prompt: upd.prompt, build_model: upd.build_model })
+                }, 1200)
+            }
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('importModal').addEventListener('click', function (e) {
+            if (e.target === this) closeImportModal()
+        })
+
         init()
     </script>
+
+    <!-- ── IMPORT PROJECT MODAL ── -->
+    <div id="importModal"
+        style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);align-items:center;justify-content:center;animation:fadeUp .2s">
+        <div
+            style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px 28px 24px;width:480px;max-width:92vw;box-shadow:0 24px 60px rgba(0,0,0,.6);position:relative">
+            <button onclick="closeImportModal()"
+                style="position:absolute;top:14px;right:14px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;width:28px;height:28px;display:grid;place-items:center;cursor:pointer;color:var(--muted)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+
+            <div
+                style="font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-0.5px;margin-bottom:4px">
+                Import React Project</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6">Select an existing React
+                project folder, then describe what you'd like to build on top of it using AI.</div>
+
+            <!-- Folder picker -->
+            <div id="importFolderArea" onclick="pickFolder()"
+                style="border:1.5px dashed var(--border2);border-radius:10px;padding:18px 16px;cursor:pointer;transition:all .15s;text-align:center;margin-bottom:14px"
+                onmouseover="this.style.borderColor='rgba(91,124,247,.5)';this.style.background='rgba(91,124,247,.05)'"
+                onmouseout="this.style.borderColor='var(--border2)';this.style.background='none'">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
+                        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        <line x1="12" y1="11" x2="12" y2="17" />
+                        <line x1="9" y1="14" x2="15" y2="14" />
+                    </svg>
+                    <div id="importFolderLabel" style="font-size:13px;font-weight:500;color:var(--text)">Click to select
+                        project folder</div>
+                    <div id="importFolderSub" style="font-family:var(--mono);font-size:10px;color:var(--muted2)">
+                        node_modules, .git and dist are excluded</div>
+                </div>
+            </div>
+
+            <!-- File count badge (shown after pick) -->
+            <div id="importFileBadge"
+                style="display:none;margin-bottom:14px;padding:8px 12px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--green);align-items:center;gap:8px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span id="importFileCount">0 files loaded</span>
+            </div>
+
+            <!-- Prompt -->
+            <div style="margin-bottom:16px">
+                <label
+                    style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);display:block;margin-bottom:7px">What
+                    would you like to build on top of it?</label>
+                <textarea id="importPrompt"
+                    placeholder="e.g. Add a dark mode toggle and improve the hero section&#10;       Add a pricing page with three tiers&#10;       Modernize the entire design with glassmorphism"
+                    style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-family:var(--body);font-size:13px;color:var(--text);resize:vertical;min-height:80px;outline:none;transition:border-color .15s;line-height:1.6"
+                    onfocus="this.style.borderColor='rgba(91,124,247,.45)'"
+                    onblur="this.style.borderColor='var(--border)'"
+                    onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')doImportBuild()"></textarea>
+                <div style="font-family:var(--mono);font-size:9px;color:var(--muted2);margin-top:5px">⌘↵ to import and
+                    build &nbsp;·&nbsp; Leave blank to just import the project</div>
+            </div>
+
+            <div style="display:flex;gap:8px">
+                <button onclick="closeImportModal()"
+                    style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;font-family:var(--body);transition:all .15s">Cancel</button>
+                <button id="importBuildBtn" onclick="doImportBuild()" disabled
+                    style="flex:2;padding:10px;border-radius:8px;border:none;background:var(--accent);font-size:13px;font-weight:600;color:#fff;cursor:pointer;font-family:var(--body);transition:all .15s;opacity:.4">
+                    Import &amp; Build
+                </button>
+            </div>
+        </div>
+    </div>
+
 </body>
 
 </html>

@@ -1,85 +1,431 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 
 <head>
-    <meta charset="utf-8" />
-    <title>Locode</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Locode Splash</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet" />
     <style>
-        body {
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
             margin: 0;
-            font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial;
-            background: #0b0f19;
-            color: #e5e7eb;
+            padding: 0
         }
 
-        .wrap {
+        :root {
+            --bg: #0b0f19;
+            --bg2: #0e1220;
+            --bg3: #141928;
+            --border: rgba(255, 255, 255, .07);
+            --border2: rgba(255, 255, 255, .13);
+            --accent: #5b7cf7;
+            --accent2: #38bdf8;
+            --green: #34d399;
+            --red: #f87171;
+            --yellow: #fbbf24;
+            --text: #e8eaf6;
+            --muted: #6b7280;
+            --mono: 'JetBrains Mono', monospace;
+            --display: 'Syne', sans-serif;
+            --body: 'Inter', sans-serif;
+        }
+
+        html,
+        body {
             height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--body);
+            font-size: 14px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .app {
+            position: relative;
+            z-index: 1;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            padding: 28px;
+            height: 100vh;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .bg-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .glow-1 {
+            width: 340px;
+            height: 260px;
+            background: radial-gradient(circle, rgba(91, 124, 247, .15) 0%, transparent 70%);
+            top: -60px;
+            left: -60px;
+        }
+
+        .glow-2 {
+            width: 280px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(56, 189, 248, .1) 0%, transparent 70%);
+            bottom: -40px;
+            right: -40px;
+        }
+
+        .header {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
             gap: 14px;
+            padding: 32px 32px 24px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .title {
+        .logo-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            background: radial-gradient(120% 120% at 20% 0%, rgba(56, 189, 248, .22), transparent 55%),
+                radial-gradient(120% 120% at 100% 100%, rgba(91, 124, 247, .20), transparent 60%),
+                linear-gradient(180deg, #1a1f35, #0e1220);
+            border: 1px solid var(--border2);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, .55);
+        }
+
+        .logo-svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+        }
+
+        .header-title {
+            font-family: var(--display);
             font-size: 20px;
-            font-weight: 700;
-            letter-spacing: 0.2px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .status {
-            font-size: 14px;
-            color: #cbd5e1;
-            line-height: 1.5;
-            white-space: pre-wrap;
+        .header-sub {
+            font-family: var(--mono);
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-top: 3px;
         }
 
-        .log {
-            margin-top: 8px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 12px;
+        .body {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 28px 32px;
+            gap: 20px;
+        }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            transition: all .3s;
+            opacity: .28;
+        }
+
+        .step.active {
+            opacity: 1;
+            background: rgba(91, 124, 247, .08);
+            border-color: rgba(91, 124, 247, .22);
+        }
+
+        .step.done {
+            opacity: .6;
+        }
+
+        .step-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+        }
+
+        .step-icon svg {
+            width: 15px;
+            height: 15px;
+            color: var(--muted);
+        }
+
+        .step.active .step-icon {
+            background: rgba(91, 124, 247, .12);
+            border-color: rgba(91, 124, 247, .3);
+        }
+
+        .step.active .step-icon svg {
+            color: var(--accent);
+        }
+
+        .step.done .step-icon {
+            background: rgba(52, 211, 153, .08);
+            border-color: rgba(52, 211, 153, .25);
+        }
+
+        .step.done .step-icon svg {
+            color: var(--green);
+        }
+
+        .step-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .step-sub {
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .progress-section {
+            margin-top: auto;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .progress-track {
+            height: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, .07);
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            transition: width .6s ease;
+        }
+
+        .log-tail {
+            font-family: var(--mono);
+            font-size: 10px;
             color: #94a3b8;
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 12px;
-            max-height: 260px;
-            overflow: auto;
+            margin-top: 15px;
+            height: 120px;
+            overflow-y: auto;
             white-space: pre-wrap;
+            line-height: 1.5;
         }
 
-        .dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: #22c55e;
-            box-shadow: 0 0 18px rgba(34, 197, 94, 0.5);
-            margin-right: 10px;
-            transform: translateY(1px);
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .step-spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(91, 124, 247, .2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+
+        .step.active .step-spinner {
+            display: block;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .header,
+        .body {
+            animation: fadeUp .5s ease both;
         }
     </style>
 </head>
 
 <body>
-    <div class="wrap">
-        <div class="title"><span class="dot"></span>Locode is starting…</div>
-        <div id="status" class="status">Initializing</div>
-        <div id="log" class="log"></div>
+    <div class="app">
+        <div class="bg-glow glow-1"></div>
+        <div class="bg-glow glow-2"></div>
+
+        <div class="header">
+            <div class="logo-box">
+                <svg class="logo-svg" viewBox="0 0 24 24" fill="none">
+                    <path d="M6.2 12.6c3.9-6.9 10.9-7.4 11.6-7.4 0 0 .4 7.9-6.5 11.8-2.3 1.3-5.2 1.5-7.3.4"
+                        stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                        style="color:#38bdf8" />
+                    <path d="M14.6 9.4l1.1-2.6 1.1 2.6 2.6 1.1-2.6 1.1-1.1 2.6-1.1-2.6-2.6-1.1 2.6-1.1z"
+                        fill="currentColor" style="color:#5b7cf7" />
+                </svg>
+            </div>
+            <div>
+                <div class="header-title">Locode</div>
+                <div class="header-sub">Starting Services</div>
+            </div>
+        </div>
+
+        <div class="body">
+            <div class="steps">
+                <div class="step" id="step-ollama">
+                    <div class="step-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 6v6l4 2" />
+                        </svg>
+                    </div>
+                    <div class="step-info">
+                        <div class="step-label">Ollama</div>
+                        <div class="step-sub">Local AI check</div>
+                    </div>
+                    <div class="step-spinner"></div>
+                </div>
+
+                <div class="step" id="step-backend">
+                    <div class="step-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+                        </svg>
+                    </div>
+                    <div class="step-info">
+                        <div class="step-label">Backend</div>
+                        <div class="step-sub">AI Pipeline Server</div>
+                    </div>
+                    <div class="step-spinner"></div>
+                </div>
+
+                <div class="step" id="step-ui">
+                    <div class="step-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                    </div>
+                    <div class="step-info">
+                        <div class="step-label">Interface</div>
+                        <div class="step-sub">Connecting UI</div>
+                    </div>
+                    <div class="step-spinner"></div>
+                </div>
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-info">
+                    <span id="progLabel">Initializing…</span>
+                    <span id="progPct">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progFill"></div>
+                </div>
+                <div id="log" class="log-tail"></div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const statusEl = document.getElementById("status");
+        const statusEl = document.getElementById("progLabel");
         const logEl = document.getElementById("log");
+        const progFill = document.getElementById("progFill");
+        const progPct = document.getElementById("progPct");
+
+        function setStep(id, status) {
+            const el = document.getElementById('step-' + id);
+            if (!el) return;
+            el.className = 'step ' + status;
+        }
 
         window.locode.onStatus((msg) => {
             statusEl.textContent = msg || "";
+            // Smart step mapping based on status strings in main.cjs boot()
+            if (msg.includes("Checking Ollama")) {
+                setStep('ollama', 'active');
+                progFill.style.width = '15%'; progPct.textContent = '15%';
+            } else if (msg.includes("Starting services") || msg.includes("backend")) {
+                setStep('ollama', 'done');
+                setStep('backend', 'active');
+                progFill.style.width = '55%'; progPct.textContent = '55%';
+            } else if (msg.includes("Connecting to") || msg.includes("Waiting for")) {
+                setStep('ollama', 'done');
+                setStep('backend', 'done');
+                setStep('ui', 'active');
+                progFill.style.width = '85%'; progPct.textContent = '85%';
+            } else if (msg.includes("Loading app")) {
+                setStep('ollama', 'done');
+                setStep('backend', 'done');
+                setStep('ui', 'done');
+                progFill.style.width = '100%'; progPct.textContent = '100%';
+            }
         });
 
         window.locode.onLog((line) => {
             if (!line) return;
-            logEl.textContent += line + "\n";
+            const row = document.createElement('div');
+            row.textContent = '> ' + line;
+            logEl.appendChild(row);
             logEl.scrollTop = logEl.scrollHeight;
+            if (logEl.children.length > 50) logEl.removeChild(logEl.firstChild);
         });
     </script>
 </body>

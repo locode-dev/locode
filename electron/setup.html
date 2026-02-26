@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Locode Setup</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        :root {
+            --bg: #080b12;
+            --bg2: #0e1220;
+            --bg3: #141928;
+            --border: rgba(255, 255, 255, .07);
+            --border2: rgba(255, 255, 255, .13);
+            --accent: #5b7cf7;
+            --accent2: #38bdf8;
+            --green: #34d399;
+            --red: #f87171;
+            --yellow: #fbbf24;
+            --text: #e8eaf6;
+            --muted: #6b7280;
+            --mono: 'JetBrains Mono', monospace;
+            --display: 'Syne', sans-serif;
+            --body: 'Inter', sans-serif;
+        }
+
+        html,
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--body);
+            font-size: 14px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* drag region for frameless window */
+        .drag {
+            -webkit-app-region: drag;
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .app {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* ── background effects ── */
+        .bg-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .glow-1 {
+            width: 340px;
+            height: 260px;
+            background: radial-gradient(circle, rgba(91, 124, 247, .18) 0%, transparent 70%);
+            top: -60px;
+            left: -60px;
+        }
+
+        .glow-2 {
+            width: 280px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(56, 189, 248, .12) 0%, transparent 70%);
+            bottom: -40px;
+            right: -40px;
+        }
+
+        /* ── header ── */
+        .header {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 28px 32px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(56, 189, 248, .22), transparent 55%),
+                radial-gradient(120% 120% at 100% 100%, rgba(91, 124, 247, .20), transparent 60%),
+                linear-gradient(180deg, #1a1f35, #0e1220);
+            border: 1px solid var(--border2);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, .55);
+        }
+
+        .logo-svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+        }
+
+        .header-text {}
+
+        .header-title {
+            font-family: var(--display);
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-sub {
+            font-family: var(--mono);
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        /* ── body ── */
+        .body {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 28px 32px 24px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        /* ── steps list ── */
+        .steps-title {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            transition: all .3s;
+            opacity: .28;
+        }
+
+        .step.active {
+            opacity: 1;
+            background: rgba(91, 124, 247, .08);
+            border-color: rgba(91, 124, 247, .22);
+        }
+
+        .step.done {
+            opacity: .6;
+        }
+
+        .step.error {
+            opacity: 1;
+            background: rgba(248, 113, 113, .06);
+            border-color: rgba(248, 113, 113, .2);
+        }
+
+        .step-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            transition: all .3s;
+        }
+
+        .step-icon svg {
+            width: 15px;
+            height: 15px;
+            color: var(--muted);
+        }
+
+        .step.active .step-icon {
+            background: rgba(91, 124, 247, .12);
+            border-color: rgba(91, 124, 247, .3);
+        }
+
+        .step.active .step-icon svg {
+            color: var(--accent);
+        }
+
+        .step.done .step-icon {
+            background: rgba(52, 211, 153, .08);
+            border-color: rgba(52, 211, 153, .25);
+        }
+
+        .step.done .step-icon svg {
+            color: var(--green);
+        }
+
+        .step.error .step-icon svg {
+            color: var(--red);
+        }
+
+        .step-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .step-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .step-sub {
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .step-badge {
+            font-family: var(--mono);
+            font-size: 8px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            transition: all .3s;
+            flex-shrink: 0;
+        }
+
+        .step.active .step-badge {
+            color: var(--yellow);
+            border-color: rgba(251, 191, 36, .25);
+            background: rgba(251, 191, 36, .07);
+            animation: blink .9s ease infinite;
+        }
+
+        .step.done .step-badge {
+            color: var(--green);
+            border-color: rgba(52, 211, 153, .22);
+            background: rgba(52, 211, 153, .06);
+        }
+
+        .step.error .step-badge {
+            color: var(--red);
+            border-color: rgba(248, 113, 113, .22);
+            background: rgba(248, 113, 113, .06);
+        }
+
+        /* ── spinner for active step ── */
+        .step-spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(91, 124, 247, .2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        .step.active .step-spinner {
+            display: block;
+        }
+
+        .step.done .step-spinner,
+        .step.error .step-spinner {
+            display: none;
+        }
+
+        /* ── progress bar ── */
+        .progress-section {
+            margin-top: auto;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .progress-label {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .progress-pct {
+            flex-shrink: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .progress-track {
+            height: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, .07);
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            transition: width .6s cubic-bezier(.4, 0, .2, 1);
+            box-shadow: 0 0 10px rgba(91, 124, 247, .5);
+        }
+
+        /* ── log tail ── */
+        .log-tail {
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: rgba(107, 114, 128, .65);
+            line-height: 1.7;
+            height: 32px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            margin-top: 10px;
+        }
+
+        /* ── error state ── */
+        .error-box {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: rgba(248, 113, 113, .07);
+            border: 1px solid rgba(248, 113, 113, .2);
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--red);
+            line-height: 1.6;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .35
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .header,
+        .body {
+            animation: fadeUp .4s ease both;
+        }
+
+        .body {
+            animation-delay: .06s;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="drag"></div>
+    <div class="app">
+        <div class="bg-glow glow-1"></div>
+        <div class="bg-glow glow-2"></div>
+
+        <div class="header">
+            <div class="logo-box">
+                <svg class="logo-svg" viewBox="0 0 24 24" fill="none">
+                    <path d="M6.2 12.6c3.9-6.9 10.9-7.4 11.6-7.4 0 0 .4 7.9-6.5 11.8-2.3 1.3-5.2 1.5-7.3.4"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="color:#38bdf8" />
+                    <path d="M14.6 9.4l1.1-2.6 1.1 2.6 2.6 1.1-2.6 1.1-1.1 2.6-1.1-2.6-2.6-1.1 2.6-1.1z"
+                        fill="currentColor" style="color:#5b7cf7" />
+                </svg>
+            </div>
+            <div class="header-text">
+                <div class="header-title">Setting up Locode</div>
+                <div class="header-sub">First-time initialization</div>
+            </div>
+        </div>
+
+        <div class="body">
+            <div>
+                <div class="steps-title">Setup steps</div>
+                <div class="steps" id="steps">
+
+                    <div class="step" id="step-ollama">
+                        <div class="step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 6v6l4 2" />
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <div class="step-label">Ollama</div>
+                            <div class="step-sub">Verifying local AI runtime</div>
+                        </div>
+                        <div class="step-spinner"></div>
+                        <div class="step-badge">pending</div>
+                    </div>
+
+                    <div class="step" id="step-ollama-server">
+                        <div class="step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                                <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                                <line x1="6" y1="6" x2="6.01" y2="6" />
+                                <line x1="6" y1="18" x2="6.01" y2="18" />
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <div class="step-label">Ollama Server</div>
+                            <div class="step-sub">Starting local inference server</div>
+                        </div>
+                        <div class="step-spinner"></div>
+                        <div class="step-badge">pending</div>
+                    </div>
+
+                    <div class="step" id="step-backend">
+                        <div class="step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <div class="step-label">Locode Backend</div>
+                            <div class="step-sub">Starting AI pipeline engine</div>
+                        </div>
+                        <div class="step-spinner"></div>
+                        <div class="step-badge">pending</div>
+                    </div>
+
+                    <div class="step" id="step-ui">
+                        <div class="step-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" />
+                                <line x1="8" y1="21" x2="16" y2="21" />
+                                <line x1="12" y1="17" x2="12" y2="21" />
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <div class="step-label">Interface</div>
+                            <div class="step-sub">Connecting to Locode UI</div>
+                        </div>
+                        <div class="step-spinner"></div>
+                        <div class="step-badge">pending</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-info">
+                    <span class="progress-label" id="progLabel">Initializing…</span>
+                    <span class="progress-pct" id="progPct">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progFill"></div>
+                </div>
+                <div class="log-tail" id="logTail">—</div>
+                <div class="error-box" id="errorBox"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STEP_IDS = ['ollama', 'ollama-server', 'backend', 'ui'];
+
+        function setStep(id, status, label) {
+            const el = document.getElementById('step-' + id);
+            if (!el) return;
+            el.className = 'step' + (status ? ' ' + status : '');
+            if (label) el.querySelector('.step-label').textContent = label;
+            const badge = el.querySelector('.step-badge');
+            badge.textContent = status === 'active' ? 'running' : status === 'done' ? '✓ done' : status === 'error' ? 'error' : 'pending';
+        }
+
+        function setProgress(pct, label) {
+            document.getElementById('progFill').style.width = pct + '%';
+            document.getElementById('progPct').textContent = Math.round(pct) + '%';
+            document.getElementById('progLabel').textContent = label || '';
+        }
+
+        function addLog(line) {
+            const el = document.getElementById('logTail');
+            el.textContent = '> ' + (line || '').slice(0, 90);
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorBox');
+            el.style.display = 'block';
+            el.textContent = '✗ ' + msg;
+        }
+
+        // Listen for messages from main process
+        if (window.locode) {
+            window.locode.onSetup(msg => {
+                if (!msg) return;
+                switch (msg.type) {
+                    case 'step':
+                        setStep(msg.step, msg.status, msg.label);
+                        break;
+                    case 'progress':
+                        setProgress(msg.pct, msg.label);
+                        break;
+                    case 'error':
+                        showError(msg.message);
+                        break;
+                    case 'launch':
+                        setProgress(100, 'Launching Locode!');
+                        break;
+                }
+            });
+            window.locode.onLog(line => addLog(line));
+        }
+    </script>
+</body>
+
+</html>
