@@ -201,6 +201,7 @@ class BuilderAgent:
         self.model        = model
         self.project_dir  = Path(project_dir)
         self.built_files: dict[str, str] = {}   # fname → content
+        self.token_usage  = {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -321,7 +322,11 @@ class BuilderAgent:
                     if tok:
                         full += tok
                         _emit(tok)
-                    if chunk.get("done"): break
+                    if chunk.get("done"):
+                        self.token_usage["prompt_tokens"]     += chunk.get("prompt_eval_count", 0)
+                        self.token_usage["completion_tokens"] += chunk.get("eval_count", 0)
+                        self.token_usage["calls"]             += 1
+                        break
                 except: continue
             _emit("\x00END")
             # Store raw LLM output so fix pass can re-extract if needed
@@ -443,7 +448,11 @@ class BuilderAgent:
                     if tok:
                         full += tok
                         _emit(tok)
-                    if chunk.get("done"): break
+                    if chunk.get("done"):
+                        self.token_usage["prompt_tokens"]     += chunk.get("prompt_eval_count", 0)
+                        self.token_usage["completion_tokens"] += chunk.get("eval_count", 0)
+                        self.token_usage["calls"]             += 1
+                        break
                 except: continue
             _emit("\x00END")
             result = self._extract(full)

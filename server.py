@@ -24,6 +24,58 @@ sys.path.insert(0, str(Path(__file__).parent))
 from agents.refiner  import RefinerAgent
 from agents.builder  import BuilderAgent, set_stream_callback
 from agents.tester   import TesterAgent, set_emit as set_tester_emit
+import shutil
+
+def _maybe_set_playwright_env():
+    # If Electron didn't set them for some reason, try to infer from app bundle.
+    if os.environ.get("PLAYWRIGHT_BROWSERS_PATH") and os.environ.get("PLAYWRIGHT_NODEJS_PATH"):
+        return
+
+    # When packaged, the backend is typically:
+    # /Applications/Locode.app/Contents/Resources/backend/locode-backend-v4
+    exe = Path(sys.argv[0]).resolve()
+    # .../Resources/backend -> .../Resources
+    resources = exe.parent.parent
+
+    pw = resources / "ms-playwright"
+    node = resources / "node" / "bin" / "node"
+
+    if pw.exists():
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(pw))
+        os.environ.setdefault("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
+
+    if node.exists():
+        os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", str(node))
+
+_maybe_set_playwright_env()
+def resolve_node_binaries():
+    # Packaged mode
+    if getattr(sys, "frozen", False):
+        exe_path = Path(sys.argv[0]).resolve()
+        resources_dir = exe_path.parent.parent  # backend → Resources
+
+        node_bin_dir = resources_dir / "node" / "bin"
+
+        npm_path = node_bin_dir / "npm"
+        node_path = node_bin_dir / "node"
+
+        if npm_path.exists() and node_path.exists():
+            return str(npm_path), str(node_path)
+
+    # Dev mode fallback
+    return shutil.which("npm") or "npm", shutil.which("node") or "node"
+
+
+NPM_BIN, NODE_BIN = resolve_node_binaries()
+
+print("DEBUG: sys.executable =", sys.executable)
+print("DEBUG: Using NPM_BIN  =", NPM_BIN)
+print("DEBUG: Using NODE_BIN =", NODE_BIN)
+
+# Ensure PATH includes bundled node
+node_dir = str(Path(NODE_BIN).parent)
+if node_dir not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = f"{node_dir}:{os.environ.get('PATH','')}"
 
 if hasattr(sys, "_MEIPASS"):
     BASE_DIR = Path(sys._MEIPASS)
@@ -156,7 +208,7 @@ def ensure_node_deps(proj_dir: Path) -> bool:
 
     try:
         r = subprocess.run(
-            ["npm", "install"],
+            [NPM_BIN, "install"],
             cwd=proj_dir,
             capture_output=True,
             text=True,
@@ -183,7 +235,7 @@ def start_vite(proj_dir: Path):
     def _run():
         try:
             p = subprocess.Popen(
-                ["npm", "run", "dev", "--", "--port", str(DEV_PORT), "--host"],
+                [NPM_BIN, "run", "dev", "--", "--port", str(DEV_PORT), "--host"],
                 cwd=proj_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -230,9 +282,11 @@ class UIBuilder(BuilderAgent):
         elog("INFO", "📦 npm install…")
         try:
             r = subprocess.run(
-                ["npm", "install"],
+                [NPM_BIN, "install"],
                 cwd=self.project_dir,
-                capture_output=True, text=True, timeout=180,
+                capture_output=True,
+                text=True,
+                timeout=180,
             )
             if r.returncode == 0:
                 estep("install", "done")
@@ -244,7 +298,7 @@ class UIBuilder(BuilderAgent):
             return False
         except FileNotFoundError:
             estep("install", "error")
-            elog("ERROR", "   npm not found — install Node.js")
+            elog("ERROR", f"   npm binary not found at: {NPM_BIN}")
             return False
 
 
@@ -463,46 +517,110 @@ def get_project_files(proj_name: str) -> dict:
 
 # ── Update pipeline ───────────────────────────────────────────────────────────
 
-def _decide_targets(update_prompt: str, components: list, codebase_ctx: str,
-                    build_model: str) -> list:
+def _classify_intent(prompt: str) -> str:
     """
-    Ask the LLM to decide which existing component(s) to modify — or whether
-    a new component is needed. Returns list of component names (strings).
-    Uses a tiny, fast call so it doesn't waste tokens.
+    Keyword-based intent classification — no LLM call needed, instant.
+    Returns:
+      'patch'  — tiny change: text / color / style / typo
+      'feature'— explicit new section / feature / page requested
+      'modify' — anything else (default: update existing component)
+    """
+    pl = prompt.lower()
+
+    # Explicit NEW thing requested
+    create_kw = [
+        "add a ", "add an ", "add new ", "create a ", "create an ",
+        "new section", "new feature", "new component", "new page",
+        "new tab", "new button", "new card", "new block",
+        "include a ", "build a ", "implement a ", "introduce a ",
+    ]
+    if any(k in pl for k in create_kw):
+        return "feature"
+
+    # Tiny surgical change — text / color / style / spelling
+    patch_kw = [
+        "change the text", "change the color", "change the colour",
+        "change the title", "change the heading", "change the label",
+        "change the button text", "change the background",
+        "update the text", "update the color", "update the colour",
+        "rename ", "make it ", "set the color", "set background",
+        "font size", "font color", "change font",
+        "replace the text", "fix the text", "fix typo",
+        "spelling", "lighter", "darker", "bigger text", "smaller text",
+        "make the text", "make the color", "make the background",
+    ]
+    if any(k in pl for k in patch_kw):
+        return "patch"
+
+    return "modify"
+
+
+def _decide_targets(update_prompt: str, components: list, codebase_ctx: str,
+                    build_model: str, intent: str = "modify") -> list:
+    """
+    Ask the LLM which component(s) to touch. Intent biases the decision:
+      patch/modify → must return an EXISTING component name
+      feature      → may return a new PascalCase name
     """
     import requests as req
 
     comp_list = ", ".join(components) if components else "(none)"
-    prompt = (
-        f"A React project has these components: {comp_list}\n\n"
-        f"The user wants to: {update_prompt}\n\n"
-        f"CODEBASE SUMMARY:\n{codebase_ctx[:1200]}\n\n"
-        "Which component(s) must be MODIFIED or CREATED to fulfil the request?\n"
-        "Reply with ONLY a JSON array of component names, e.g.: [\"Hero\", \"Navbar\"]\n"
-        "Rules:\n"
-        "- Use existing names exactly as listed above when modifying\n"
-        "- Use a new PascalCase name when a new component is needed\n"
-        "- Maximum 3 components per update\n"
-        "- Reply with ONLY the JSON array. No explanation."
+
+    if intent == "feature":
+        bias = (
+            "The user wants to ADD something new. You may return a new PascalCase "
+            "component name if no existing component is appropriate."
+        )
+    else:
+        # patch or modify: must stay in existing components
+        bias = (
+            "The user wants to MODIFY existing UI. You MUST return only names from "
+            "the existing component list. Do NOT invent new names."
+        )
+
+    system = (
+        "You are a JSON API. Output ONLY a raw JSON array of strings. "
+        'No explanation, no markdown, no preamble. Example: ["Hero", "Features"]'
     )
+    user = (
+        f"Existing components: {comp_list}\n\n"
+        f"User request: {update_prompt}\n\n"
+        f"Rule: {bias}\n\n"
+        f"Codebase:\n{codebase_ctx[:900]}\n\n"
+        "Which component(s) to change? JSON array only:"
+    )
+
     try:
         r = req.post(
             f"{OLLAMA_URL}/api/chat",
             json={
-                "model":    build_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "stream":   False,
-                "options":  {"temperature": 0.0, "num_predict": 80},
+                "model":   build_model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user},
+                ],
+                "stream":  False,
+                "options": {"temperature": 0.0, "num_predict": 150},
             },
             timeout=45,
         )
         r.raise_for_status()
         raw = r.json()["message"]["content"].strip()
-        # Extract JSON array from response
-        m = re.search(r'\[([^\]]+)\]', raw)
-        if m:
-            names = json.loads(f"[{m.group(1)}]")
-            return [n.strip() for n in names if isinstance(n, str) and n.strip()]
+        # Strip markdown fences if model added them
+        raw = re.sub(r"```[a-z]*\s*", "", raw).replace("```", "").strip()
+        # Find the JSON array — try full parse first, then regex
+        try:
+            arr = json.loads(raw)
+            if isinstance(arr, list):
+                names = arr
+            else:
+                raise ValueError("not a list")
+        except Exception:
+            m = re.search(r'\[([^\]]+)\]', raw)
+            names = json.loads(f"[{m.group(1)}]") if m else []
+        result = [n.strip() for n in names if isinstance(n, str) and n.strip()]
+        log.info(f"   _decide_targets → {result} (intent={intent})")
+        return result
     except Exception as e:
         log.warning(f"   _decide_targets failed: {e}")
     return []
@@ -510,51 +628,73 @@ def _decide_targets(update_prompt: str, components: list, codebase_ctx: str,
 
 def _build_update_prompt(component_name: str, existing_code: str,
                          update_request: str, codebase_ctx: str,
-                         is_new: bool) -> str:
+                         is_new: bool, intent: str = "modify") -> str:
     """
-    Construct a targeted per-component update prompt.
-    This goes through builder._gen() exactly like a fresh generation.
+    Build an LLM prompt tuned to the intent:
+      patch   — surgical: change only specific text/color/value, no restructuring
+      modify  — meaningful update: change layout/logic but preserve the rest
+      feature — new component that matches existing visual style
     """
     import textwrap as tw
+
     if is_new:
         return tw.dedent(f"""\
-            Add a NEW component called '{component_name}' to an existing React project.
+            Create a NEW React component called '{component_name}'.
 
             USER REQUEST: {update_request}
 
-            EXISTING CODEBASE (for context — imports, styles, data patterns):
-            {codebase_ctx[:1500]}
+            EXISTING CODEBASE — match this style exactly (colors, fonts, design language):
+            {codebase_ctx[:2000]}
 
             Requirements:
             - Export default function {component_name}()
-            - Match the visual style and color scheme of the existing site
+            - Mirror the exact color scheme and visual style of the existing components above
             - framer-motion animations, Tailwind CSS, react-icons/fi
-            - Real content matching the request — no placeholder text
-            - Outermost div MUST have an explicit dark background class
-            - Output ONLY the complete JSX starting with imports
+            - Real specific content — no placeholder text
+            - Outermost element must have an explicit dark background
+            - Output ONLY the complete JSX starting with import statements
             """)
-    else:
+
+    if intent == "patch":
+        # Surgical change — give full existing code so LLM sees exactly what to touch
         return tw.dedent(f"""\
-            Modify the existing '{component_name}' React component as requested.
+            Make this SMALL change to the '{component_name}' React component:
 
-            USER REQUEST: {update_request}
+            CHANGE: {update_request}
 
-            EXISTING COMPONENT CODE (modify THIS — keep everything not mentioned in the request):
+            CURRENT FULL CODE (change ONLY what is described above, nothing else):
             {existing_code}
 
-            OTHER FILES FOR CONTEXT (imports, shared styles — do NOT modify these):
-            {codebase_ctx[:1200]}
-
-            Requirements:
-            - Apply ONLY the changes the user requested — preserve all other functionality
-            - Keep the same visual design for parts not mentioned in the request
+            STRICT RULES:
+            - Change ONLY what is explicitly asked — do not restructure, rename, or restyle anything else
+            - Keep every import, every function, every className unchanged unless the request mentions it
+            - Do not add new features, animations, or sections not in the request
             - Export default function {component_name}()
-            - Follow all JSX rules: hoist regex, hoist divisions, no split components
-            - Output ONLY the COMPLETE updated component JSX starting with imports
+            - Output the COMPLETE updated JSX starting with import statements
             """)
 
+    # intent == "modify" — meaningful change, preserve everything else
+    return tw.dedent(f"""\
+        Update the '{component_name}' component as described.
 
-def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
+        REQUEST: {update_request}
+
+        CURRENT CODE (read this carefully — implement the request, preserve everything else):
+        {existing_code}
+
+        OTHER PROJECT FILES (context only — do NOT change these):
+        {codebase_ctx[:1200]}
+
+        RULES:
+        - Implement the requested changes fully
+        - Preserve ALL existing functionality, content, and styling not mentioned in the request
+        - Do not add unrelated features or change the visual design of untouched sections
+        - Export default function {component_name}()
+        - Output the COMPLETE updated JSX starting with import statements
+        """)
+
+
+def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str, intent_override: str = ""):
     """
     Load an existing project, decide which components to change, re-generate
     each one through the standard builder._gen() → _write_one() pipeline,
@@ -603,23 +743,53 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
         estep("build", "active")
         eprog("Deciding targets…", 22)
 
-        targets = _decide_targets(update_prompt, components, codebase_ctx, build_model)
+        # Classify intent — use frontend override if provided, else auto-classify
+        intent = intent_override if intent_override in ("patch", "modify", "feature")                  else _classify_intent(update_prompt)
+        elog("INFO", f"   🧭 Intent: {intent}")
+
+        targets = _decide_targets(update_prompt, components, codebase_ctx, build_model, intent)
         targets = [t for t in targets if re.match(r"^[A-Z][A-Za-z0-9_]*$", t)]
 
+        # For patch/modify: reject any invented new names — LLM must pick existing ones
+        if intent != "feature":
+            targets = [t for t in targets if t in components]
+
         if not targets:
-            # Fallback: ask the user's prompt to name the component directly,
-            # or default to regenerating the component whose name appears in the request.
+            pl = update_prompt.lower()
+            # 1. Component name mentioned directly in prompt
             for comp in components:
-                if comp.lower() in update_prompt.lower():
-                    targets = [comp]
-                    break
+                if comp.lower() in pl:
+                    targets = [comp]; break
+            # 2. Semantic keyword → component mapping
+            if not targets:
+                sem = [
+                    (["hero","banner","header","headline","title","cta button","main button"], ["Hero"]),
+                    (["nav","navbar","menu","link","navigation"],                              ["Navbar"]),
+                    (["feature","benefit","service","card","grid"],                           ["Features"]),
+                    (["about","story","mission","team","who we"],                             ["About"]),
+                    (["price","pricing","plan","tier","subscription"],                        ["Pricing"]),
+                    (["contact","form","email","reach","touch"],                              ["Contact"]),
+                    (["footer","copyright","social link","bottom"],                           ["Footer"]),
+                    (["testimonial","review","quote","customer"],                             ["Testimonials"]),
+                    (["gallery","image","photo","portfolio item"],                            ["Gallery"]),
+                    (["faq","question","answer","accordion"],                                 ["FAQ"]),
+                ]
+                for kws, cands in sem:
+                    if any(k in pl for k in kws):
+                        matched = [c for c in cands if c in components]
+                        if matched:
+                            targets = [matched[0]]; break
+            # 3. For feature intent — generate a new name from the prompt
+            if not targets and intent == "feature":
+                words = [w.strip(".,!?") for w in update_prompt.split()
+                         if w[0].isupper() and len(w) > 3]
+                new_name = words[0] if words else "NewSection"
+                targets = [new_name]
+                elog("INFO", f"   ➕ Feature: creating new component {new_name}")
+            # 4. Last resort — first component (not largest, that was wrong)
             if not targets and components:
-                # Last resort: pick the most content-heavy component (most likely to be the one)
-                targets = [max(
-                    components,
-                    key=lambda c: len(builder.built_files.get(f"src/components/{c}.jsx", ""))
-                )]
-                elog("WARN", f"   Could not infer target — defaulting to largest component: {targets}")
+                targets = [components[0]]
+                elog("WARN", f"   Could not infer target — defaulting to: {targets[0]}")
             elif not targets:
                 eerr("No components found in project"); return
 
@@ -642,7 +812,7 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
             eprog(f"Generating {comp_name}…", 25 + i * pct_per_comp)
 
             prompt = _build_update_prompt(
-                comp_name, existing, update_prompt, codebase_ctx, is_new
+                comp_name, existing, update_prompt, codebase_ctx, is_new, intent
             )
 
             # _gen() handles: streaming to UI, token emission, extraction, raw output caching
@@ -672,17 +842,31 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
         eprog("Components updated", 58)
         elog("INFO", f"   ✅ {updated_count}/{len(targets)} component(s) updated")
 
-        # ── Step 4: Restart Vite ──────────────────────────────────────────────
+        # ── Step 4: Vite hot-reload or restart ────────────────────────────────
         estep("serve", "active")
-        eprog("Restarting Vite…", 65)
-        elog("INFO", "🌐 Restarting Vite…")
-        if not ensure_node_deps(proj_dir):
-            eerr("Dependency install failed")
+        if intent == "patch":
+            # Vite HMR picks up file changes automatically — no restart needed
+            # Just wait a moment for HMR to propagate
+            elog("INFO", "⚡ Patch change — Vite HMR will reload automatically")
+            eprog("Hot reloading…", 70)
+            time.sleep(2)
+            estep("serve", "done")
+            estep("test", "done")
+            eprog("Done!", 100)
+            url = f"http://localhost:{DEV_PORT}"
+            elog("INFO", f"✅ Patch applied → {url}")
+            edone(url, proj_name, builder)
             return
-        start_vite(proj_dir)
-        time.sleep(8)
+        else:
+            eprog("Restarting Vite…", 65)
+            elog("INFO", "🌐 Restarting Vite…")
+            if not ensure_node_deps(proj_dir):
+                eerr("Dependency install failed")
+                return
+            start_vite(proj_dir)
+            wait_for_vite(35)
 
-        # ── Step 5: Test + fix loop (identical to run_pipeline) ───────────────
+        # ── Step 5: Test + fix loop ────────────────────────────────────────────
         estep("test", "active")
         eprog("Testing…", 75)
         elog("INFO", "🧪 Testing updated build…")
@@ -744,7 +928,7 @@ def run_update_pipeline(proj_name: str, update_prompt: str, build_model: str):
         estep("serve", "done")
         eprog("Done!", 100)
         elog("INFO", f"🎉 Updated → {url}")
-        edone(url, proj_name)
+        edone(url, proj_name, builder)
 
     except Exception as e:
         eerr(f"Update error: {e}")
@@ -818,12 +1002,14 @@ async def ws_handler(websocket, path=None):
                             target=run_pipeline, args=(p, rm, bm), daemon=True
                         ).start()
                 elif msg.get("type") == "update":
-                    proj = msg.get("project", "").strip()
-                    p    = msg.get("prompt", "").strip()
-                    bm   = msg.get("build_model", DEFAULT_BUILD)
+                    proj   = msg.get("project", "").strip()
+                    p      = msg.get("prompt", "").strip()
+                    bm     = msg.get("build_model", DEFAULT_BUILD)
+                    # Frontend can override intent (e.g. feature tab always sets "feature")
+                    intent = msg.get("intent", "")  # "" = auto-classify in server
                     if proj and p:
                         threading.Thread(
-                            target=run_update_pipeline, args=(proj, p, bm), daemon=True
+                            target=run_update_pipeline, args=(proj, p, bm, intent), daemon=True
                         ).start()
             except json.JSONDecodeError: pass
     except websockets.exceptions.ConnectionClosed: pass
@@ -924,16 +1110,19 @@ class UIHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
 
-
+def start_http():
+    try:
+        httpd = HTTPServer(("127.0.0.1", UI_PORT), UIHandler)
+        print(f"HTTP server listening on 127.0.0.1:{UI_PORT}")
+        httpd.serve_forever()
+    except Exception as e:
+        print(f"HTTP server failed: {e}")
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 async def main():
     global MAIN_LOOP
     MAIN_LOOP = asyncio.get_running_loop()
-    threading.Thread(
-        target=HTTPServer(("127.0.0.1", UI_PORT), UIHandler).serve_forever,
-        daemon=True
-    ).start()
+    threading.Thread(target=start_http, daemon=True).start()
     print(f"\n{'━'*46}")
     print(f"  ⚡ Locode v1.0.0 Starting...")
     print(f"  ⚡ UI Server   →  http://127.0.0.1:{UI_PORT}")
@@ -976,6 +1165,7 @@ def handle_signal(sig, frame):
 
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
+
 
 if __name__ == "__main__":
     try:

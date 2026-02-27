@@ -15,42 +15,120 @@
     "wait-on": "^9.0.4"
   },
   "scripts": {
-    "electron:dev": "pkill -f locode || true && lsof -ti :7824,7825 | xargs kill -9 || true && electron .",
-    "dist": "electron-builder --mac dmg",
-    "prep:node": "./scripts/download-node-macos.sh",
-    "build:backend": "lsof -ti :7824,7825 | xargs kill -9 || true && rm -rf build dist dist-backend && python3 -m PyInstaller --clean locode-backend.spec --noconfirm",
-    "prep:backend": "rm -rf dist-backend && mkdir -p dist-backend && cp dist/locode-backend-v4 dist-backend/locode-backend-v4 && chmod +x dist-backend/locode-backend-v4",
-    "package:all": "npm run build:backend && npm run prep:node && npm run prep:backend && npm run dist"
+    "electron:dev": "lsof -ti :7824,7825,5173 | xargs kill -9 2>/dev/null; mkdir -p electron/ui && cp -n ui/index.html electron/ui/ 2>/dev/null || true; bash scripts/patch-electron-icon.sh 2>/dev/null || true; electron .",
+    "electron:dev:win": "electron .",
+    "build:backend:mac": "lsof -ti :7824,7825 | xargs kill -9 2>/dev/null || true && rm -rf build dist dist-backend && python3 -m PyInstaller --clean locode-backend-mac.spec --noconfirm",
+    "build:backend:win": "taskkill /F /IM locode-backend-v4.exe 2>nul || true && rmdir /S /Q dist dist-backend 2>nul || true && python -m PyInstaller --clean locode-backend-win.spec --noconfirm",
+    "prep:backend:mac": "rm -rf dist-backend && mkdir -p dist-backend && cp dist/locode-backend-v4 dist-backend/locode-backend-v4 && chmod +x dist-backend/locode-backend-v4",
+    "prep:backend:win": "if not exist dist-backend mkdir dist-backend && copy dist\\locode-backend-v4.exe dist-backend\\locode-backend-v4.exe",
+    "prep:node:mac": "./scripts/download-node-macos.sh",
+    "prep:node:win": "scripts\\download-node-windows.bat",
+    "prep:playwright:mac": "PLAYWRIGHT_BROWSERS_PATH=./vendor/ms-playwright python3 -m playwright install chromium",
+    "prep:playwright:win": "set PLAYWRIGHT_BROWSERS_PATH=.\\vendor\\ms-playwright && python -m playwright install chromium",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis",
+    "dist:both": "electron-builder --mac dmg --win nsis",
+    "package:mac": "npm run build:backend:mac && npm run prep:backend:mac && npm run prep:node:mac && npm run prep:playwright:mac && npm run dist:mac",
+    "package:win": "npm run build:backend:win && npm run prep:backend:win && npm run prep:node:win && npm run prep:playwright:win && npm run dist:win",
+    "setup:ui": "mkdir -p electron/ui && cp ui/index.html electron/ui/",
+    "patch:icon": "bash scripts/patch-electron-icon.sh",
+    "postinstall": "bash scripts/patch-electron-icon.sh || true"
   },
   "build": {
-    "appId": "dev.locode.v4",
-    "productName": "Locode V4",
+    "appId": "dev.locode.v1",
+    "productName": "Locode",
+    "copyright": "Copyright \u00a9 2024 Syed Shadman Akbar",
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "!**/node_modules/**",
+      "!**/.git/**"
+    ],
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.developer-tools",
       "icon": "assets/locode.icns",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
-    "files": [
-      "electron/**/*",
-      "electron/main.cjs",
-      "electron/ollama-bootstrap.cjs"
-    ],
+    "dmg": {
+      "title": "Locode Installer",
+      "icon": "assets/locode.icns",
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/locode.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/locode.ico",
+      "uninstallerIcon": "assets/locode.ico",
+      "installerHeaderIcon": "assets/locode.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Locode",
+      "license": "LICENSE.txt"
+    },
     "extraResources": [
       {
         "from": "dist-backend",
-        "to": "backend"
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "vendor/node",
-        "to": "node"
+        "to": "node",
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "vendor/ms-playwright",
-        "to": "ms-playwright"
+        "to": "ms-playwright",
+        "filter": [
+          "**/*"
+        ]
       }
-    ]
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    }
   }
 }

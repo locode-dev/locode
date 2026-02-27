@@ -2864,8 +2864,8 @@
             } else {
                 wrap.style.display = 'block'; fixBtn.style.display = 'none'
                 input.placeholder = mode === 'update'
-                    ? 'Change text, colors, layout… (e.g. "make the button blue")'
-                    : 'Describe the new feature or section to add…'
+                    ? 'Describe a change to your app…'
+                    : 'Describe a new feature to add…'
                 input.focus()
             }
         }
@@ -2875,16 +2875,11 @@
             if (!val) return
             document.getElementById('rptInput').value = ''
             if (rptMode === 'update') {
-                setBusy(true); addLog('INFO', `✏️ Reprompt: ${val}`)
-                // Send raw prompt — server classifies intent automatically
+                setBusy(true); addLog('INFO', `✏️ Update: ${val}`)
                 wsSend({ type: 'update', project: curProj, prompt: val, build_model: selBuild })
             } else if (rptMode === 'feature') {
                 setBusy(true); addLog('INFO', `➕ Feature: ${val}`)
-                // Tag as feature so server knows to create a new component
-                wsSend({
-                    type: 'update', project: curProj, prompt: val,
-                    intent: 'feature', build_model: selBuild
-                })
+                wsSend({ type: 'update', project: curProj, prompt: `Add this new feature: ${val}`, build_model: selBuild })
             }
         }
 

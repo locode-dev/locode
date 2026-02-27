@@ -48,7 +48,7 @@ class TesterAgent:
         if not self._ensure_playwright():
             elog("WARN", "⚠ Playwright unavailable — skipping browser tests")
             etest("skip", "Playwright unavailable")
-            return errors
+            return []  # NOT errors — don't trigger a fix loop just because Playwright is missing
 
         errors.extend(self._run_browser_tests())
         return errors
@@ -116,10 +116,11 @@ class TesterAgent:
                         if m.type == "error" else None)
                 page.on("pageerror", lambda e: console_errors.append(f"PageError: {e}"))
 
-                # Navigate
+                # Navigate — use "load" so JS has run before we check anything.
+                # Don't use "networkidle": Vite HMR keeps a WS open forever.
                 elog("INFO", f"→ Navigating to {self.base_url}...")
                 try:
-                    resp = page.goto(self.base_url, timeout=25000, wait_until="domcontentloaded")
+                    resp = page.goto(self.base_url, timeout=30000, wait_until="load")
                     code = resp.status if resp else "?"
                     if resp and resp.status >= 400:
                         msg = f"Page returned HTTP {code}"
@@ -136,96 +137,115 @@ class TesterAgent:
                     errors.append(msg); etest("fail", msg)
                     browser.close(); return errors
 
-                # React mount
-                elog("INFO", "→ Checking React mount (#root)...")
-                try:
-                    page.wait_for_selector("#root > *", timeout=12000)
-                    elog("INFO", "✅ React mounted successfully")
-                    etest("pass", "React mounted")
-                except PWTimeout:
-                    msg = "React root never mounted — likely a compile/runtime error"
-                    errors.append(msg); etest("fail", msg)
-                    elog("WARN", f"❌ {msg}")
+                # React mount — try several selectors; some apps don't use #root
+                elog("INFO", "→ Waiting for app to render...")
+                react_mounted = False
+                for _sel in ["#root > *", "#app > *", "canvas", "svg", "main"]:
+                    try:
+                        page.wait_for_selector(_sel, timeout=8000)
+                        react_mounted = True
+                        elog("INFO", f"✅ App rendered (selector: {_sel})")
+                        etest("pass", "App rendered")
+                        break
+                    except PWTimeout:
+                        continue
+                if not react_mounted:
+                    # Last resort: body has any children at all
+                    if page.evaluate("() => document.body.children.length") > 0:
+                        react_mounted = True
+                        elog("INFO", "✅ Body has children — assuming rendered")
+                        etest("pass", "App rendered")
+                    else:
+                        msg = "App never rendered — likely a compile/runtime error"
+                        errors.append(msg); etest("fail", msg)
+                        elog("WARN", f"❌ {msg}")
 
-                # Vite error overlay — shadow DOM + page source fallback
+                # Vite error overlay (shadow DOM only — no raw HTML scan which
+                # causes false positives on Vite source maps / inline JS strings)
                 vite_err_txt = ""
                 try:
                     vite_err_txt = page.evaluate("""() => {
                         const ov = document.querySelector('vite-error-overlay');
                         if (ov && ov.shadowRoot) {
-                            const msg = ov.shadowRoot.querySelector('.message-body,.message,pre,.err-message');
-                            return msg ? msg.textContent : ov.shadowRoot.textContent.slice(0,600);
+                            const el = ov.shadowRoot.querySelector('.message-body,.message,pre,.err-message');
+                            return el ? el.textContent.trim().slice(0,600)
+                                      : ov.shadowRoot.textContent.trim().slice(0,600);
                         }
-                        const pre = document.querySelector('pre');
-                        if (pre && pre.textContent.length > 20) return pre.textContent.slice(0,600);
                         return '';
                     }""") or ""
                 except Exception:
                     pass
 
-                if not vite_err_txt:
-                    try:
-                        import urllib.request, re as _re
-                        raw = urllib.request.urlopen(self.base_url, timeout=5).read().decode("utf-8", errors="replace")
-                        for pat in [r'SyntaxError[^<\n]{0,250}', r'ReferenceError[^<\n]{0,250}',
-                                    r'TypeError[^<\n]{0,250}', r'Plugin vite[^<\n]{0,250}',
-                                    r'"message"\s*:\s*"([^"]{20,250})"']:
-                            m = _re.search(pat, raw, _re.IGNORECASE)
-                            if m:
-                                vite_err_txt = _re.sub(r'<[^>]+>', '', m.group(0)).strip()
-                                break
-                    except Exception:
-                        pass
-
-                if vite_err_txt and len(vite_err_txt) > 10:
+                if vite_err_txt and len(vite_err_txt) > 15:
                     errors.append(f"Vite compile error: {vite_err_txt[:500]}")
                     etest("fail", "Vite compile error", vite_err_txt[:120])
                     elog("WARN", f"❌ Vite compile error: {vite_err_txt[:120]}")
                 else:
-                    etest("pass", "No Vite compile error")
+                    etest("pass", "No Vite error overlay")
 
-                # Blank page check — two signals:
-                # 1. text length < 30 (definitely blank)
-                # 2. no element has a non-zero bounding box (invisible rendering)
-                try:
-                    body_text = page.inner_text("body").strip()
-                    has_visible_box = page.evaluate("""() => {
-                        const els = document.querySelectorAll('#root *');
-                        for (const el of els) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 10 && r.height > 10) return true;
-                        }
-                        return false;
-                    }""")
-                    if len(body_text) < 30 and not has_visible_box:
-                        msg = "Page appears blank — no visible content rendered"
-                        errors.append(msg); etest("fail", msg)
-                        elog("WARN", f"❌ {msg}")
-                    elif len(body_text) < 30 and has_visible_box:
-                        # Elements exist but no readable text — likely invisible text
-                        msg = "Page has elements but no readable text (possible color issue)"
-                        errors.append(msg); etest("fail", msg)
-                        elog("WARN", f"⚠ {msg}")
-                    else:
-                        elog("INFO", f"✅ Content visible ({len(body_text)} chars)")
-                        etest("pass", f"Content visible ({len(body_text)} chars)")
-                except Exception:
-                    pass
+                # Blank page check — ONLY fail if BOTH:
+                #   • no element has a visible bounding box (truly nothing rendered)
+                #   • body text is completely empty
+                # This avoids false positives for canvas/SVG/icon-only apps which
+                # render rich content but have little innerText.
+                if react_mounted:
+                    try:
+                        has_visible = page.evaluate("""() => {
+                            const sels = ['#root *', '#app *', 'body > div *', 'canvas', 'svg'];
+                            for (const s of sels) {
+                                for (const el of document.querySelectorAll(s)) {
+                                    const r = el.getBoundingClientRect();
+                                    if (r.width > 5 && r.height > 5) return true;
+                                }
+                            }
+                            return false;
+                        }""")
+                        body_text = ""
+                        try:
+                            body_text = page.inner_text("body").strip()
+                        except Exception:
+                            pass
+                        if not has_visible and len(body_text) < 10:
+                            msg = "Page appears completely blank — nothing rendered"
+                            errors.append(msg); etest("fail", msg)
+                            elog("WARN", f"❌ {msg}")
+                        else:
+                            info = f"{len(body_text)} chars" if body_text else "visual content only"
+                            elog("INFO", f"✅ Content visible ({info})")
+                            etest("pass", "Content visible")
+                    except Exception:
+                        pass
 
-                # Console errors
-                noise = ["favicon", "Warning:", "DevTools", "Download the React",
-                         "ReactDOM.render", "StrictMode", "[HMR]"]
-                real_errors = [e for e in console_errors
-                               if not any(n in e for n in noise)]
+                # Console errors — only report real JS exceptions that broke the app.
+                # Ignore HMR noise, React dev warnings, network/CDN errors.
+                noise = [
+                    "favicon", "Warning:", "DevTools", "Download the React",
+                    "ReactDOM.render", "StrictMode", "[HMR]", "[vite]", "vite",
+                    "hot update", "connecting", "react-refresh",
+                    "net::ERR_", "Failed to load resource",
+                    "Cross-Origin", "Content-Security-Policy",
+                ]
+                real_signals = [
+                    "is not defined", "is not a function",
+                    "Cannot read prop", "Cannot read properties",
+                    "SyntaxError", "ReferenceError", "TypeError",
+                    "Failed to resolve import", "does not provide an export",
+                ]
+                # Filter: must NOT match noise AND MUST match a real signal
+                real_errors = [
+                    e for e in console_errors
+                    if not any(n.lower() in e.lower() for n in noise)
+                    and any(s in e for s in real_signals)
+                ]
                 if real_errors:
                     for ce in real_errors[:5]:
                         short = ce[:160]
-                        elog("WARN", f"⚠ Console error: {short}")
-                        etest("fail", f"Console error", short)
+                        elog("WARN", f"⚠ JS error: {short}")
+                        etest("fail", "JS runtime error", short)
                         errors.append(f"Console error: {short}")
                 else:
-                    elog("INFO", "✅ No console errors")
-                    etest("pass", "No console errors")
+                    elog("INFO", "✅ No blocking JS errors")
+                    etest("pass", "No JS errors")
 
                 # Screenshot
                 try:

@@ -1,34 +1,52 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# scripts/download-node-macos.sh
+# Downloads a standalone Node.js binary into vendor/node/
+# This is bundled inside the .app so users don't need Node installed.
 
-# Pick a Node version that’s stable for you
-NODE_VERSION="${NODE_VERSION:-v20.11.1}"
+set -e
 
-ARCH="$(uname -m)"
-if [[ "$ARCH" == "arm64" ]]; then
-  NODE_DIST="node-${NODE_VERSION}-darwin-arm64"
+NODE_VERSION="20.18.1"
+ARCH=$(uname -m)
+
+if [ "$ARCH" = "arm64" ]; then
+    NODE_ARCH="arm64"
 else
-  NODE_DIST="node-${NODE_VERSION}-darwin-x64"
+    NODE_ARCH="x64"
 fi
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DEST_DIR="${ROOT_DIR}/vendor/node"
+NODE_TARBALL="node-v${NODE_VERSION}-darwin-${NODE_ARCH}.tar.gz"
+NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_TARBALL}"
+VENDOR_DIR="$(cd "$(dirname "$0")/.." && pwd)/vendor"
+NODE_DIR="${VENDOR_DIR}/node"
 
-echo "Downloading ${NODE_DIST}..."
-TMP_DIR="$(mktemp -d)"
-cd "$TMP_DIR"
+echo "📦 Downloading Node.js v${NODE_VERSION} (${NODE_ARCH}) for macOS..."
+echo "   URL: ${NODE_URL}"
 
-URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_DIST}.tar.gz"
-curl -L "$URL" -o node.tgz
+mkdir -p "${VENDOR_DIR}"
+TMP_DIR=$(mktemp -d)
 
-echo "Extracting..."
-tar -xzf node.tgz
+curl -L --progress-bar "${NODE_URL}" -o "${TMP_DIR}/${NODE_TARBALL}"
+echo "✅ Downloaded"
 
-echo "Installing into ${DEST_DIR}..."
-rm -rf "$DEST_DIR"
-mkdir -p "$DEST_DIR"
-cp -R "${NODE_DIST}/"* "$DEST_DIR/"
+echo "📂 Extracting..."
+tar -xzf "${TMP_DIR}/${NODE_TARBALL}" -C "${TMP_DIR}"
 
-echo "Done."
-echo "Node: $("${DEST_DIR}/bin/node" -v)"
-echo "NPM : $("${DEST_DIR}/bin/npm" -v)"
+EXTRACTED="${TMP_DIR}/node-v${NODE_VERSION}-darwin-${NODE_ARCH}"
+rm -rf "${NODE_DIR}"
+mv "${EXTRACTED}" "${NODE_DIR}"
+
+chmod +x "${NODE_DIR}/bin/node"
+chmod +x "${NODE_DIR}/bin/npm"
+chmod +x "${NODE_DIR}/bin/npx"
+
+# Remove docs/man to reduce size (~30MB saved)
+rm -rf "${NODE_DIR}/share"
+rm -rf "${NODE_DIR}/include"
+
+rm -rf "${TMP_DIR}"
+
+echo ""
+echo "✅ Node.js ready at: vendor/node/"
+echo "   node: $(${NODE_DIR}/bin/node --version)"
+echo "   npm:  $(${NODE_DIR}/bin/npm --version)"
+echo "   Size: $(du -sh ${NODE_DIR} | cut -f1)"
