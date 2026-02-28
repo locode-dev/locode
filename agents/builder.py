@@ -179,7 +179,16 @@ SYSTEM_PROMPT = textwrap.dedent("""\
        NO 'function Calculator()' + 'function App() { return <Calculator/> }'.
        ALL logic lives in ONE export default function. This is the most important rule.
     6. NEVER import from 'react-icons/all' — use 'react-icons/fi', '/fa', '/hi', etc.
-    7. NEVER use react-scroll, lucide-react, or any package not in package.json.
+    7. ONLY use packages from this EXACT allowed list — NO others:
+       ALLOWED: react, react-dom, framer-motion, react-icons
+       react-icons usage: import {{ FiHome }} from 'react-icons/fi'
+       BANNED (will crash Vite): react-scroll, lucide-react, react-leaflet,
+         react-router-dom, axios, lodash, chart.js, d3, three, @mui/material,
+         @chakra-ui/react, react-query, zustand, styled-components, classnames,
+         react-spring, react-use, @heroicons/react, react-helmet, react-hot-toast.
+       If you need a MAP: use a plain <div> with a styled placeholder — no leaflet.
+       If you need CHARTS: use pure CSS/SVG bars — no chart.js/d3.
+       If you need ROUTING: use useState for view switching — no react-router.
     8. Self-close void elements: <br />, <img />, <input />, <hr />
     9. Outermost div MUST have explicit background: bg-gray-900, bg-slate-950, bg-black.
        NEVER leave root div transparent — causes blank white pages.
@@ -201,7 +210,6 @@ class BuilderAgent:
         self.model        = model
         self.project_dir  = Path(project_dir)
         self.built_files: dict[str, str] = {}   # fname → content
-        self.token_usage  = {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -322,11 +330,7 @@ class BuilderAgent:
                     if tok:
                         full += tok
                         _emit(tok)
-                    if chunk.get("done"):
-                        self.token_usage["prompt_tokens"]     += chunk.get("prompt_eval_count", 0)
-                        self.token_usage["completion_tokens"] += chunk.get("eval_count", 0)
-                        self.token_usage["calls"]             += 1
-                        break
+                    if chunk.get("done"): break
                 except: continue
             _emit("\x00END")
             # Store raw LLM output so fix pass can re-extract if needed
@@ -418,6 +422,11 @@ class BuilderAgent:
             {raw_section}
             ═══ INSTRUCTIONS ═══
             - Fix EVERY error listed above — the browser console errors are the true cause
+            - ONLY import from: react, react-dom, framer-motion, react-icons/*
+            - BANNED packages (not installed, will crash): react-leaflet, react-router-dom,
+              axios, lodash, chart.js, d3, three, @mui/material, @chakra-ui/react,
+              react-query, zustand, styled-components, react-hot-toast, react-helmet
+            - If you were using react-leaflet: replace with a <div> map placeholder
             - Only use icons that actually exist: FiHome, FiX, FiCircle, FiGrid, FiStar, FiMenu, etc.
             - Do NOT invent icon names — if unsure, use FiBox or FiSquare as a safe fallback
             - NEVER write /regex/ literals inside JSX — hoist them to const before return()
@@ -448,11 +457,7 @@ class BuilderAgent:
                     if tok:
                         full += tok
                         _emit(tok)
-                    if chunk.get("done"):
-                        self.token_usage["prompt_tokens"]     += chunk.get("prompt_eval_count", 0)
-                        self.token_usage["completion_tokens"] += chunk.get("eval_count", 0)
-                        self.token_usage["calls"]             += 1
-                        break
+                    if chunk.get("done"): break
                 except: continue
             _emit("\x00END")
             result = self._extract(full)
@@ -1133,7 +1138,67 @@ class BuilderAgent:
             # Remove the comment header
             code = re.sub(r"//\s*CONSOLE_ERROR:[^\n]*\n", "", code)
 
+        # ── 1d. Strip imports of packages NOT in our package.json ─────────────
+        # The LLM frequently imports react-leaflet, react-router-dom, axios, etc.
+        # None of these are installed → Vite crashes with "Failed to resolve import".
+        # Auto-remove the import line and replace usage with safe inline fallbacks.
+        _BANNED_PACKAGES = [
+            "react-leaflet", "leaflet",
+            "react-router-dom", "react-router",
+            "axios", "lodash", "lodash-es",
+            "chart.js", "react-chartjs-2",
+            "d3", "d3-scale", "d3-shape",
+            "three", "@react-three/fiber", "@react-three/drei",
+            "@mui/material", "@mui/icons-material",
+            "@chakra-ui/react", "@chakra-ui/icons",
+            "react-query", "@tanstack/react-query",
+            "zustand", "jotai", "recoil",
+            "styled-components", "@emotion/react", "@emotion/styled",
+            "classnames", "clsx",
+            "react-spring", "@react-spring/web",
+            "react-use",
+            "react-helmet", "react-helmet-async",
+            "react-hot-toast", "sonner",
+            "react-toastify",
+            "react-dnd", "react-beautiful-dnd",
+            "react-virtualized", "react-window",
+            "react-table", "@tanstack/react-table",
+            "react-hook-form", "formik", "yup",
+            "date-fns", "dayjs", "moment",
+            "uuid", "nanoid",
+            "numeral", "accounting",
+        ]
+        for pkg in _BANNED_PACKAGES:
+            # Match: import ... from 'pkg'  or  import ... from "pkg"
+            pkg_pattern = re.compile(
+                rf"^import\b[^\n]*from\s+['\"]" + re.escape(pkg) + r"['\"][^\n]*\n?",
+                re.MULTILINE
+            )
+            n_before = len(code)
+            code = pkg_pattern.sub("", code)
+            if len(code) != n_before:
+                changes.append(f"removed banned package import: {pkg}")
+
+        # ── 1e. Replace MapContainer/react-leaflet JSX with a styled placeholder ─
+        # Even after removing the import, <MapContainer> tags stay and crash Vite.
+        if "MapContainer" in code or "TileLayer" in code or "react-leaflet" in code:
+            # Remove any remaining leaflet component usage
+            for tag in ["MapContainer", "TileLayer", "Marker", "Popup", "MapView",
+                        "LeafletMap", "OpenStreetMap"]:
+                code = re.sub(rf"<{tag}[^>]*/?>", "", code)
+                code = re.sub(rf"<{tag}[^>]*>.*?</{tag}>", "", code, flags=re.DOTALL)
+            # Replace with a styled map placeholder div
+            code = re.sub(
+                r"\{/\*\s*map\s*\*/\}",
+                '<div className="w-full h-64 bg-gray-800 rounded-xl flex items-center '
+                'justify-center text-gray-500 border border-white/10">'
+                '<span>📍 Stockholm, Sweden</span></div>',
+                code, flags=re.IGNORECASE
+            )
+            changes.append("replaced react-leaflet map with styled placeholder")
+
         # ── 2. react-scroll  →  native anchor links ────────────────────────────
+
         if "react-scroll" in code:
             # Remove the import line entirely
             code = re.sub(r"import\s+.*?from\s+['\"]react-scroll['\"];?\n?", "", code)

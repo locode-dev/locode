@@ -1930,6 +1930,18 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(91, 124, 247, .35);
         }
+
+        @keyframes popIn {
+            from {
+                opacity: 0;
+                transform: scale(.85) translateY(20px)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0)
+            }
+        }
     </style>
 </head>
 
@@ -2837,7 +2849,7 @@
                 case 'file': onFile(m.name, m.size, m.content); break
                 case 'detected': onDetected(m.site_type, m.strategy); break
                 case 'progress': setProgress(m.step, m.pct); break
-                case 'done': onDone(m.url, m.project); break
+                case 'done': onDone(m.url, m.project, m.stats); break
                 case 'error': onErr(m.text); break
                 case 'stream_start': onStreamStart(m.file); break
                 case 'stream': onStreamToken(m.file, m.token); break
@@ -2864,8 +2876,8 @@
             } else {
                 wrap.style.display = 'block'; fixBtn.style.display = 'none'
                 input.placeholder = mode === 'update'
-                    ? 'Change text, colors, layout… (e.g. "make the button blue")'
-                    : 'Describe the new feature or section to add…'
+                    ? 'Describe a change to your app…'
+                    : 'Describe a new feature to add…'
                 input.focus()
             }
         }
@@ -2875,16 +2887,11 @@
             if (!val) return
             document.getElementById('rptInput').value = ''
             if (rptMode === 'update') {
-                setBusy(true); addLog('INFO', `✏️ Reprompt: ${val}`)
-                // Send raw prompt — server classifies intent automatically
+                setBusy(true); addLog('INFO', `✏️ Update: ${val}`)
                 wsSend({ type: 'update', project: curProj, prompt: val, build_model: selBuild })
             } else if (rptMode === 'feature') {
                 setBusy(true); addLog('INFO', `➕ Feature: ${val}`)
-                // Tag as feature so server knows to create a new component
-                wsSend({
-                    type: 'update', project: curProj, prompt: val,
-                    intent: 'feature', build_model: selBuild
-                })
+                wsSend({ type: 'update', project: curProj, prompt: `Add this new feature: ${val}`, build_model: selBuild })
             }
         }
 
@@ -3018,7 +3025,7 @@
             document.getElementById('dtype').textContent = t
             document.getElementById('dbadge').classList.add('show')
         }
-        function onDone(url, p) {
+        function onDone(url, p, stats) {
             curProj = p; setStatus('live', 'live'); setBusy(false)
             document.getElementById('urltxt').textContent = url
             const f = document.getElementById('frame'); f.style.display = 'block'; f.src = url
@@ -3028,7 +3035,75 @@
             hist = hist.filter(h => h.p !== p)
             hist.push({ prompt: prompt.slice(0, 55), p, t: document.getElementById('dtype').textContent || '?' })
             localStorage.setItem('locode-hist', JSON.stringify(hist)); renderHistory()
+            setTimeout(() => showSavingsPopup(stats), 900)
         }
+        function showSavingsPopup(s) {
+            // If Ollama didn't report token counts, use a conservative estimate
+            s = Object.assign({}, s)
+            if (!s || !s.total_tokens || s.total_tokens === 0) {
+                s.prompt_tokens = s.prompt_tokens || 35000
+                s.completion_tokens = s.completion_tokens || 25000
+                s.total_tokens = s.prompt_tokens + s.completion_tokens
+                s.llm_calls = s.llm_calls || 6
+                s.gpt4o_cost_usd = +((s.prompt_tokens / 1e6 * 5) + (s.completion_tokens / 1e6 * 15)).toFixed(4)
+                s.claude_cost_usd = +((s.prompt_tokens / 1e6 * 3) + (s.completion_tokens / 1e6 * 15)).toFixed(4)
+                s.lovable_cost_usd = +Math.max(0.05, s.total_tokens / 1e6 * 40).toFixed(4)
+                s.ollama_cost_usd = 0
+                s._est = true
+            }
+            const fmt = n => n >= 0.01 ? '$' + n.toFixed(3) : n > 0 ? '<$0.01' : '$0.00'
+            const fmtK = n => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n)
+            const best = Math.max(s.gpt4o_cost_usd, s.claude_cost_usd, s.lovable_cost_usd)
+            const rows = [
+                { name: 'ChatGPT', icon: '🤖', sub: 'GPT-4o API', cost: s.gpt4o_cost_usd, col: '#10b981' },
+                { name: 'Claude', icon: '🧠', sub: 'Sonnet API', cost: s.claude_cost_usd, col: '#f59e0b' },
+                { name: 'Lovable', icon: '💜', sub: 'Per generation', cost: s.lovable_cost_usd, col: '#ec4899' },
+            ]
+            const el = document.createElement('div')
+            el.id = 'spop'
+            el.innerHTML = `
+              <div id="spBg" style="position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center">
+                <div style="background:#0f0f1a;border:1px solid rgba(99,102,241,.4);border-radius:20px;padding:32px 36px;max-width:460px;width:90%;box-shadow:0 0 60px rgba(99,102,241,.25),0 25px 50px rgba(0,0,0,.6);animation:popIn .35s cubic-bezier(.34,1.56,.64,1)">
+                  <div style="text-align:center;margin-bottom:22px">
+                    <div style="font-size:44px;margin-bottom:6px">💰</div>
+                    <h2 style="font-size:19px;font-weight:700;color:#fff;margin:0 0 5px">You just saved up to</h2>
+                    <div style="font-size:46px;font-weight:800;background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1">${fmt(best)}</div>
+                    <div style="color:#6b7280;font-size:13px;margin-top:5px">by building locally with Ollama 🦙</div>
+                  </div>
+                  <div style="background:#1a1a2e;border-radius:12px;padding:14px;margin-bottom:18px">
+                    <div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Tokens this build${s._est ? ' (estimated)' : ''}</div>
+                    <div style="display:flex;justify-content:space-around">
+                      ${[['Input', s.prompt_tokens, '#6366f1'], ['Output', s.completion_tokens, '#a855f7'], ['Total', s.total_tokens, '#ec4899'], ['Calls', s.llm_calls, '#10b981']].map(([l, v, c]) =>
+                `<div style="text-align:center"><div style="font-size:19px;font-weight:700;color:${c}">${fmtK(v)}</div><div style="font-size:10px;color:#6b7280;margin-top:2px">${l}</div></div>`
+            ).join('')}
+                    </div>
+                  </div>
+                  <div style="margin-bottom:18px">
+                    <div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px">What competitors charge</div>
+                    ${rows.map(r => `
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:#0f0f1a;border:1px solid rgba(255,255,255,.07);border-radius:9px;margin-bottom:7px">
+                        <div style="display:flex;align-items:center;gap:9px">
+                          <span style="font-size:19px">${r.icon}</span>
+                          <div><div style="font-size:13px;font-weight:600;color:#e2e8f0">${r.name}</div><div style="font-size:10px;color:#6b7280">${r.sub}</div></div>
+                        </div>
+                        <div style="font-size:17px;font-weight:700;color:${r.col}">${fmt(r.cost)}</div>
+                      </div>`).join('')}
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:linear-gradient(135deg,rgba(99,102,241,.15),rgba(168,85,247,.15));border:1px solid rgba(99,102,241,.3);border-radius:9px">
+                      <div style="display:flex;align-items:center;gap:9px">
+                        <span style="font-size:19px">🦙</span>
+                        <div><div style="font-size:13px;font-weight:600;color:#e2e8f0">Locode (You!)</div><div style="font-size:10px;color:#6b7280">Local Ollama</div></div>
+                      </div>
+                      <div style="font-size:17px;font-weight:800;color:#6366f1">$0.00</div>
+                    </div>
+                  </div>
+                  <button onclick="document.getElementById('spop').remove()" style="width:100%;padding:12px;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;font-weight:600;font-size:14px;border:none;border-radius:10px;cursor:pointer">Awesome, let's go! 🚀</button>
+                  <div style="text-align:center;margin-top:9px;font-size:10px;color:#4b5563">${s._est ? '⚠ Estimated · ' : ''} Click outside to dismiss · Public API rates</div>
+                </div>
+              </div>`
+            el.querySelector('#spBg').addEventListener('click', e => { if (e.target.id === 'spBg') el.remove() })
+            document.body.appendChild(el)
+        }
+
         function onErr(txt) {
             setStatus('err', 'error'); setBusy(false)
             addLog('ERROR', txt)

@@ -33,19 +33,54 @@ PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_i
 NODE_VER=$(node -e "process.stdout.write(process.versions.node)")
 echo "  Python: $PY_VER  |  Node: $NODE_VER"
 
-# Check icons
+# ── Check icons ───────────────────────────────────────────────────────────────
 [ -f "assets/locode.icns" ] || fail "Missing assets/locode.icns — create it with iconutil"
 [ -f "assets/locode.png"  ] || warn  "Missing assets/locode.png (dock icon fallback)"
 
-# Check UI
-[ -f "electron/ui/index.html" ] || {
-    warn "electron/ui/index.html not found — checking root ui/ ..."
-    [ -f "ui/index.html" ] && {
-        mkdir -p electron/ui
-        cp -r ui/* electron/ui/
-        ok "Copied ui/ → electron/ui/"
-    } || fail "No UI found. Build your frontend first."
-}
+# ── Ensure electron/ folder exists ───────────────────────────────────────────
+mkdir -p electron
+
+# ── FIX: Sync Electron HTML/JS files into electron/ ─────────────────────────
+# main.cjs loads splash.html/setup.html/preload.cjs relative to __dirname
+# which resolves to the electron/ folder inside the .app bundle.
+# These files must live in electron/ BEFORE electron-builder runs.
+step "Syncing Electron support files into electron/"
+
+for f in splash.html setup.html; do
+    if [ -f "$f" ]; then
+        cp "$f" "electron/$f"
+        ok "Copied $f → electron/$f"
+    elif [ ! -f "electron/$f" ]; then
+        fail "Missing $f (checked root and electron/) — cannot continue"
+    else
+        ok "electron/$f already present"
+    fi
+done
+
+for f in preload.cjs preload.js ollama-bootstrap.cjs; do
+    if [ -f "$f" ] && [ ! -f "electron/$f" ]; then
+        cp "$f" "electron/$f"
+        ok "Copied $f → electron/$f"
+    elif [ -f "electron/$f" ]; then
+        ok "electron/$f already present"
+    fi
+done
+
+# ── FIX: Ensure ui/index.html exists at root ui/ (for PyInstaller spec) ─────
+# PyInstaller spec bundles ("ui", "ui") → _MEIPASS/ui/
+# server.py serves from UI_DIR = _MEIPASS/ui/
+# So index.html MUST be at ui/index.html, not at root.
+step "Ensuring ui/index.html exists for PyInstaller"
+
+if [ -f "ui/index.html" ]; then
+    ok "ui/index.html already present"
+elif [ -f "index.html" ]; then
+    mkdir -p ui
+    cp index.html ui/index.html
+    ok "Copied index.html → ui/index.html"
+else
+    fail "No index.html found (checked ui/index.html and index.html)"
+fi
 
 ok "Preflight passed"
 
@@ -65,6 +100,7 @@ step "Preparing bundled Node.js"
 if [ -f "vendor/node/bin/node" ]; then
     ok "Bundled Node.js already present ($(vendor/node/bin/node --version))"
 else
+    [ -f "scripts/download-node-macos.sh" ] || fail "Missing scripts/download-node-macos.sh"
     bash scripts/download-node-macos.sh
     ok "Bundled Node.js downloaded"
 fi
@@ -88,7 +124,20 @@ ok "Ports clear"
 
 # ── 6. Build PyInstaller backend binary ──────────────────────────────────────
 step "Building Python backend binary (PyInstaller)"
+
+# Wipe EVERYTHING PyInstaller and Python might cache.
+# Stale .pyc files mean changed source (server.py, builder.py etc.)
+# gets packed as OLD bytecode — your edits never make it into the DMG.
 rm -rf build dist dist-backend __pycache__
+# Clear bytecode from agents/ and root — PyInstaller reads .pyc preferentially
+find . -name "*.pyc" -not -path "*/node_modules/*" -delete 2>/dev/null || true
+find . -name "__pycache__" -not -path "*/node_modules/*" -exec rm -rf {} + 2>/dev/null || true
+ok "Cleared all Python bytecode caches"
+
+[ -f "locode-backend-mac.spec" ] || fail "Missing locode-backend-mac.spec"
+
+# --clean forces full re-analysis (ignores any surviving .toc cache)
+# --noconfirm overwrites dist/ without prompting
 python3 -m PyInstaller --clean locode-backend-mac.spec --noconfirm
 
 # Verify output
@@ -98,24 +147,79 @@ mkdir -p dist-backend
 cp dist/locode-backend-v4 dist-backend/locode-backend-v4
 chmod +x dist-backend/locode-backend-v4
 
-# Quick sanity check — binary should at least print something
-BACKEND_TEST=$(timeout 3 dist-backend/locode-backend-v4 2>&1 | head -3 || true)
-echo "  Binary test output: $BACKEND_TEST"
 ok "Backend binary built: $(du -sh dist-backend/locode-backend-v4 | cut -f1)"
+
+# ── 6b. Verify binary can start ───────────────────────────────────────────────
+step "Smoke-testing backend binary"
+# Give it 3s — it will start, print DEBUG lines, then begin serving
+# We just want to confirm it doesn't crash immediately
+# macOS has no GNU timeout — use gtimeout (brew coreutils) or perl fallback
+if command -v gtimeout >/dev/null 2>&1; then
+    BACKEND_OUT=$(gtimeout 3 dist-backend/locode-backend-v4 2>&1 || true)
+else
+    # Pure bash timeout: run in background, sleep, kill
+    dist-backend/locode-backend-v4 >/tmp/_locode_test.txt 2>&1 &
+    BG_PID=$!
+    sleep 3
+    kill $BG_PID 2>/dev/null || true
+    BACKEND_OUT=$(cat /tmp/_locode_test.txt 2>/dev/null || true)
+fi
+echo "  Output: $(echo "$BACKEND_OUT" | head -3)"
+
+if echo "$BACKEND_OUT" | grep -q "Traceback\|ModuleNotFoundError\|ImportError"; then
+    fail "Backend binary crashed on startup — check PyInstaller spec hiddenimports"
+fi
+ok "Backend binary starts cleanly"
 
 # ── 7. Build Electron DMG ─────────────────────────────────────────────────────
 step "Building Electron DMG"
+# Clean previous DMG outputs (electron-builder uses dist/ or release/)
+rm -rf release
+rm -f dist/*.dmg dist/*.dmg.blockmap
+
 npx electron-builder --mac dmg
 
-DMG=$(ls release/*.dmg 2>/dev/null | head -1)
-[ -n "$DMG" ] || fail "DMG not found in release/"
+# electron-builder defaults to dist/ — check both dist/ and release/
+DMG=$(ls dist/*.dmg 2>/dev/null | head -1)
+[ -n "$DMG" ] || DMG=$(ls release/*.dmg 2>/dev/null | head -1)
+[ -n "$DMG" ] || fail "DMG not found in dist/ or release/"
 
 DMG_SIZE=$(du -sh "$DMG" | cut -f1)
 ok "DMG created: $DMG ($DMG_SIZE)"
 
-# ── 8. Verify DMG ─────────────────────────────────────────────────────────────
+# ── 8. Verify DMG structure ───────────────────────────────────────────────────
 step "Verifying DMG"
 hdiutil verify "$DMG" >/dev/null 2>&1 && ok "DMG integrity OK" || warn "DMG verify failed (non-fatal)"
+
+# Mount and check key files exist inside the bundle
+MOUNT_DIR=$(mktemp -d)
+hdiutil attach "$DMG" -mountpoint "$MOUNT_DIR" -nobrowse -quiet 2>/dev/null || {
+    warn "Could not mount DMG to inspect — skipping bundle check"
+    rmdir "$MOUNT_DIR" 2>/dev/null
+}
+
+if [ -d "$MOUNT_DIR/Locode.app" ]; then
+    RES="$MOUNT_DIR/Locode.app/Contents/Resources"
+    ok "Mounted at $MOUNT_DIR"
+    echo "  Checking bundle contents..."
+
+    check_path() {
+        if [ -e "$RES/$1" ]; then
+            echo -e "${GREEN}    ✅ $1${RESET}"
+        else
+            echo -e "${RED}    ❌ MISSING: $1${RESET}"
+        fi
+    }
+
+    check_path "backend/locode-backend-v4"
+    check_path "node/bin/node"
+    check_path "ms-playwright"
+    check_path "ui/index.html"
+    check_path "locode.png"
+
+    hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null || true
+fi
+rmdir "$MOUNT_DIR" 2>/dev/null || true
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
